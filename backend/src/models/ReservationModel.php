@@ -173,3 +173,36 @@ function reservation_list_by_court_and_date_range(PDO $pdo, int $courtId, string
     ]);
     return $stmt->fetchAll();
 }
+
+function reservation_find_all_for_admin(PDO $pdo): array
+{
+    $sql = "
+        SELECT 
+            r.id,
+            r.date,
+            r.start_time,
+            r.end_time,
+            r.status,
+
+            u.id AS player_id,
+            u.first_name AS player_first_name,
+            u.last_name AS player_last_name,
+            u.email AS player_email,
+
+            p.id AS provider_id,
+            p.venue_name AS provider_name,
+
+            c.id AS court_id,
+            c.name AS court_name
+
+        FROM reservations r
+        INNER JOIN users u ON u.id = r.user_id
+        INNER JOIN courts c ON c.id = r.court_id
+        INNER JOIN providers p ON p.id = c.provider_id
+        
+        ORDER BY r.date DESC, r.start_time DESC
+    ";
+
+    $stmt = $pdo->query($sql);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}

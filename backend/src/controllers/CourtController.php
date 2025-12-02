@@ -216,16 +216,33 @@ function court_timeslots_list_by_court_controller(PDO $pdo): void
         json_response(['error' => 'No autorizado'], 403);
     }
 
-    $courtId = isset($_GET['court_id']) ? (int)$_GET['court_id'] : 0;
-    if ($courtId <= 0) {
-        json_response(['error' => 'court_id requerido'], 400);
+    // Buscar perfil de proveedor
+    $provider = provider_find_by_user($pdo, $userId);
+    if (!$provider) {
+        json_response(['error' => 'No se encontró perfil de proveedor'], 404);
     }
 
-    court_require_owned_by_provider($pdo, $courtId, $userId);
+    // 👉 YA NO PEDIMOS court_id. Traemos TODOS los horarios
+    // de TODAS las canchas de este proveedor.
+    $sql = "
+        SELECT 
+            ts.*,
+            c.name AS court_name,
+            c.sport AS court_sport,
+            c.id   AS court_id
+        FROM court_time_slots ts
+        INNER JOIN courts c ON c.id = ts.court_id
+        WHERE c.provider_id = :provider_id
+        ORDER BY c.id ASC, ts.weekday ASC, ts.start_time ASC
+    ";
 
-    $slots = court_timeslot_find_by_court($pdo, $courtId);
-    json_response(['slots' => $slots]);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute(['provider_id' => $provider['id']]);
+    $rows = $stmt->fetchAll();
+
+    json_response(['slots' => $rows]);
 }
+
 
 // NUEVO: crear time slot
 function court_timeslot_create_controller(PDO $pdo): void

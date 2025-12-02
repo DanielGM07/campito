@@ -15,7 +15,7 @@ const WEEKDAYS = [
 export default function ProviderCourtSchedulePage() {
   const [courts, setCourts] = useState([])
   const [selectedCourtId, setSelectedCourtId] = useState("")
-  const [slots, setSlots] = useState([])
+  const [allSlots, setAllSlots] = useState([]) // 👈 todos los slots del proveedor
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -43,31 +43,25 @@ export default function ProviderCourtSchedulePage() {
     }
   }
 
-  const loadSlots = async (courtId) => {
-    if (!courtId) {
-      setSlots([])
-      return
-    }
+  // 👇 Ahora este endpoint NO recibe court_id: trae todos los slots del proveedor.
+  const loadSlots = async () => {
     try {
-      const res = await api.get("court_timeslots_list_by_court", {
-        court_id: Number(courtId),
-      })
-      setSlots(res.slots || [])
+      const res = await api.get("court_timeslots_list_by_court")
+      setAllSlots(res.slots || [])
     } catch (e) {
       console.error(e)
-      setSlots([])
+      setAllSlots([])
     }
   }
 
   useEffect(() => {
-    loadCourts()
-  }, [])
-
-  useEffect(() => {
-    if (selectedCourtId) {
-      loadSlots(selectedCourtId)
+    // Primero canchas, luego horarios
+    const init = async () => {
+      await loadCourts()
+      await loadSlots()
     }
-  }, [selectedCourtId])
+    init()
+  }, [])
 
   const handleFormChange = (e) => {
     const { name, value } = e.target
@@ -78,6 +72,14 @@ export default function ProviderCourtSchedulePage() {
     e.preventDefault()
     if (!selectedCourtId) return
 
+    // ⏰ Validación: solo horas en punto (mm === "00")
+    const isOnHour = (t) => t && t.slice(3, 5) === "00"
+
+    if (!isOnHour(form.start_time) || !isOnHour(form.end_time)) {
+      alert("Los horarios deben ser en horas en punto (ej: 10:00, 11:00, 16:00).")
+      return
+    }
+
     setSaving(true)
     try {
       await api.post("court_timeslot_create", {
@@ -86,8 +88,9 @@ export default function ProviderCourtSchedulePage() {
         start_time: form.start_time,
         end_time: form.end_time,
       })
+      // limpiar horas pero mantener el día
       setForm((prev) => ({ ...prev, start_time: "", end_time: "" }))
-      await loadSlots(selectedCourtId)
+      await loadSlots()
     } catch (e) {
       alert(e.message || "Error al crear el horario")
     } finally {
@@ -101,15 +104,24 @@ export default function ProviderCourtSchedulePage() {
 
     try {
       await api.post("court_timeslot_delete", { id: slotId })
-      await loadSlots(selectedCourtId)
+      await loadSlots()
     } catch (e) {
       alert(e.message || "Error al eliminar el horario")
     }
   }
 
+  // 👉 Filtramos los slots para la cancha seleccionada
+  const slotsForSelectedCourt = selectedCourtId
+    ? allSlots.filter(
+        (s) => Number(s.court_id) === Number(selectedCourtId)
+      )
+    : []
+
   const slotsByWeekday = WEEKDAYS.map((day) => ({
     ...day,
-    items: slots.filter((s) => Number(s.weekday) === day.value),
+    items: slotsForSelectedCourt.filter(
+      (s) => Number(s.weekday) === day.value
+    ),
   }))
 
   if (loading) {
@@ -134,7 +146,7 @@ export default function ProviderCourtSchedulePage() {
       {courts.length === 0 ? (
         <div className="card">
           <p className="page-subtitle">
-            Primero necesitás crear canchas en la sección <b>“Mis canchas”</b>.
+            Primero necesitás crear canchas en el apartado <b>“Mis canchas”</b>.
           </p>
         </div>
       ) : (
@@ -151,7 +163,7 @@ export default function ProviderCourtSchedulePage() {
               <div>
                 <div className="card-title">Configurar horarios</div>
                 <div className="card-subtitle">
-                  Elegí una cancha y agregá bloques de horarios.
+                  Elegí una cancha y agregá bloques de horarios en horas en punto.
                 </div>
               </div>
             </div>
@@ -204,6 +216,7 @@ export default function ProviderCourtSchedulePage() {
                       className="field-input"
                       value={form.start_time}
                       onChange={handleFormChange}
+                      step="3600" // solo horas en punto
                       required
                     />
                   </div>
@@ -215,6 +228,7 @@ export default function ProviderCourtSchedulePage() {
                       className="field-input"
                       value={form.end_time}
                       onChange={handleFormChange}
+                      step="3600" // solo horas en punto
                       required
                     />
                   </div>
@@ -242,7 +256,7 @@ export default function ProviderCourtSchedulePage() {
               </div>
             </div>
 
-            {slots.length === 0 ? (
+            {slotsForSelectedCourt.length === 0 ? (
               <p className="page-subtitle">
                 Todavía no cargaste horarios para esta cancha.
               </p>
@@ -281,10 +295,7 @@ export default function ProviderCourtSchedulePage() {
                       >
                         {day.label}
                       </div>
-                      <div
-                        className="chip"
-                        style={{ fontSize: 11 }}
-                      >
+                      <div className="chip" style={{ fontSize: 11 }}>
                         {day.items.length} bloque(s)
                       </div>
                     </div>

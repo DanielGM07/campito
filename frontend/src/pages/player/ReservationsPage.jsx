@@ -213,7 +213,8 @@ export default function ReservationsPage() {
                           color: 'var(--text-muted)',
                         }}
                       >
-                        No cancelable
+                        {/* No cancelable */}
+                        Cancelada
                       </div>
                     )}
                   </div>

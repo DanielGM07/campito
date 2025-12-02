@@ -10,93 +10,92 @@ require_once __DIR__ . '/../models/ReservationModel.php';
 
 function reservation_create_controller(PDO $pdo): void
 {
-    $playerId = auth_require_login();
-    $user     = user_find_by_id($pdo, $playerId);
-    if (!$user || !$user['is_player']) {
-        json_response(['error' => 'No eres jugador'], 403);
-    }
-
+    $userId = auth_require_login();
     $input = get_json_input();
 
     $required = ['court_id', 'reserved_date', 'start_time', 'end_time', 'players_count', 'type'];
     foreach ($required as $r) {
-        if (empty($input[$r])) {
+        if (!isset($input[$r]) || $input[$r] === '') {
             json_response(['error' => "Campo requerido: $r"], 400);
         }
     }
 
-    $court = court_find_by_id($pdo, (int)$input['court_id']);
-    if (!$court || $court['status'] !== 'active') {
-        json_response(['error' => 'Cancha no disponible'], 400);
-    }
+    $courtId       = (int)$input['court_id'];
+    $reservedDate  = $input['reserved_date']; // YYYY-MM-DD
+    $startTime     = $input['start_time'];    // HH:MM:SS
+    $endTime       = $input['end_time'];      // HH:MM:SS
+    $playersCount  = (int)$input['players_count'];
+    $type          = $input['type'];
+    $teamId        = isset($input['team_id']) ? (int)$input['team_id'] : null;
 
-    $date  = $input['reserved_date']; // formato Y-m-d
-    $start = $input['start_time'];    // HH:MM:SS
-    $end   = $input['end_time'];
+    // 👉 Validación de fecha FUTURA o HOY pero con horario futuro
+    $now = new DateTime("now", new DateTimeZone("America/Argentina/Buenos_Aires"));
+    $slotStart = new DateTime("$reservedDate $startTime", new DateTimeZone("America/Argentina/Buenos_Aires"));
 
-    if (strtotime("$date $start") <= time()) {
+    if ($slotStart < $now) {
         json_response(['error' => 'No se permiten reservas en fechas/horarios pasados'], 400);
     }
 
-    if (reservation_has_overlap_for_court($pdo, (int)$court['id'], $date, $start, $end)) {
-        json_response(['error' => 'Horario ocupado para esta cancha'], 400);
+    // Verificar que la cancha exista
+    $stmt = $pdo->prepare("SELECT * FROM courts WHERE id = :id AND status = 'active'");
+    $stmt->execute(['id' => $courtId]);
+    $court = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$court) {
+        json_response(['error' => 'Cancha no encontrada'], 404);
     }
 
-    if (reservation_conflicts_with_tournament($pdo, (int)$court['id'], $date, $start, $end)) {
-        json_response(['error' => 'No se puede reservar en horario de torneo'], 400);
+    // Precio
+    $pricePerHour = (float)$court['price_per_hour'];
+    $totalPrice   = $pricePerHour;
+    $pricePerPlayer = $totalPrice / max($playersCount, 1);
+
+    // 👉 Verificar que NO esté reservado el mismo rango
+    $stmt = $pdo->prepare("
+        SELECT id FROM reservations
+        WHERE court_id = :court_id
+          AND reserved_date = :reserved_date
+          AND status IN ('pending', 'confirmed', 'in_progress', 'completed')
+          AND (
+                start_time < :end_time
+                AND end_time > :start_time
+              )
+    ");
+    $stmt->execute([
+        'court_id'      => $courtId,
+        'reserved_date' => $reservedDate,
+        'start_time'    => $startTime,
+        'end_time'      => $endTime,
+    ]);
+
+    if ($stmt->fetch()) {
+        json_response(['error' => 'El horario ya está reservado'], 400);
     }
 
-    if (reservation_has_overlap_for_player($pdo, $playerId, $date, $start, $end)) {
-        json_response(['error' => 'Ya tienes una reserva en ese horario'], 400);
-    }
+    // Insertar reserva
+    $stmt = $pdo->prepare("
+        INSERT INTO reservations
+        (court_id, player_id, team_id, reserved_date, start_time, end_time,
+         total_price, price_per_player, players_count, type, status)
+        VALUES
+        (:court_id, :player_id, :team_id, :reserved_date, :start_time, :end_time,
+         :total_price, :price_per_player, :players_count, :type, 'confirmed')
+    ");
 
-    $weekCount = reservation_weekly_count_for_player($pdo, $playerId, $date);
-    if ($weekCount >= 3) {
-        json_response(['error' => 'Límite de 3 reservas por semana alcanzado'], 400);
-    }
-
-    $playersCount = (int)$input['players_count'];
-    if ($playersCount <= 0 || $playersCount > (int)$court['max_players']) {
-        json_response(['error' => 'Cantidad de jugadores inválida para la cancha'], 400);
-    }
-
-    $type = $input['type'] === 'team' ? 'team' : 'individual';
-    $teamId = null;
-    if ($type === 'team') {
-        if (empty($input['team_id'])) {
-            json_response(['error' => 'team_id requerido para reservas de equipo'], 400);
-        }
-        $teamId = (int)$input['team_id'];
-    }
-
-    $hours = (strtotime($end) - strtotime($start)) / 3600;
-    if ($hours <= 0) {
-        json_response(['error' => 'Horario inválido'], 400);
-    }
-
-    $totalPrice      = $hours * (float)$court['price_per_hour'];
-    $pricePerPlayer  = $totalPrice / $playersCount;
-
-    $id = reservation_create($pdo, [
-        'court_id'        => (int)$court['id'],
-        'player_id'       => $playerId,
+    $stmt->execute([
+        'court_id'        => $courtId,
+        'player_id'       => $userId,
         'team_id'         => $teamId,
-        'reserved_date'   => $date,
-        'start_time'      => $start,
-        'end_time'        => $end,
+        'reserved_date'   => $reservedDate,
+        'start_time'      => $startTime,
+        'end_time'        => $endTime,
         'total_price'     => $totalPrice,
         'price_per_player'=> $pricePerPlayer,
         'players_count'   => $playersCount,
         'type'            => $type,
-        'status'          => 'pending',
     ]);
 
-    $reservation = reservation_find_by_id($pdo, $id);
-
-    json_response([
-        'message'     => 'Reserva creada',
-        'reservation' => $reservation,
-    ], 201);
+    json_response(['message' => 'Reserva creada correctamente'], 201);
 }
 
 function reservation_list_my_controller(PDO $pdo): void
@@ -178,42 +177,42 @@ function reservation_update_time_my_controller(PDO $pdo): void
 }
 
 // NUEVO: listar reservas de las canchas del proveedor logueado
-function reservation_list_by_provider_controller(PDO $pdo): void
-{
-    $userId = auth_require_login();
+// function reservation_list_by_provider_controller(PDO $pdo): void
+// {
+//     $userId = auth_require_login();
 
-    // Verificar que sea proveedor
-    $me = user_find_by_id($pdo, $userId);
-    if (!$me || !$me['is_provider']) {
-        json_response(['error' => 'No autorizado'], 403);
-    }
+//     // Verificar que sea proveedor
+//     $me = user_find_by_id($pdo, $userId);
+//     if (!$me || !$me['is_provider']) {
+//         json_response(['error' => 'No autorizado'], 403);
+//     }
 
-    // Buscar perfil de proveedor
-    $provider = provider_find_by_user($pdo, $userId);
-    if (!$provider) {
-        json_response(['error' => 'No se encontró perfil de proveedor'], 404);
-    }
+//     // Buscar perfil de proveedor
+//     $provider = provider_find_by_user($pdo, $userId);
+//     if (!$provider) {
+//         json_response(['error' => 'No se encontró perfil de proveedor'], 404);
+//     }
 
-    $sql = "
-        SELECT 
-            r.*,
-            c.name       AS court_name,
-            c.sport      AS court_sport,
-            u.first_name AS player_first_name,
-            u.last_name  AS player_last_name
-        FROM reservations r
-        INNER JOIN courts c ON c.id = r.court_id
-        INNER JOIN users u  ON u.id = r.player_id
-        WHERE c.provider_id = :provider_id
-        ORDER BY r.reserved_date DESC, r.start_time DESC
-    ";
+//     $sql = "
+//         SELECT 
+//             r.*,
+//             c.name       AS court_name,
+//             c.sport      AS court_sport,
+//             u.first_name AS player_first_name,
+//             u.last_name  AS player_last_name
+//         FROM reservations r
+//         INNER JOIN courts c ON c.id = r.court_id
+//         INNER JOIN users u  ON u.id = r.player_id
+//         WHERE c.provider_id = :provider_id
+//         ORDER BY r.reserved_date DESC, r.start_time DESC
+//     ";
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute(['provider_id' => $provider['id']]);
-    $rows = $stmt->fetchAll();
+//     $stmt = $pdo->prepare($sql);
+//     $stmt->execute(['provider_id' => $provider['id']]);
+//     $rows = $stmt->fetchAll();
 
-    json_response(['reservations' => $rows]);
-}
+//     json_response(['reservations' => $rows]);
+// }
 
 function court_availability_list_controller(PDO $pdo): void
 {
@@ -308,4 +307,95 @@ function court_availability_list_controller(PDO $pdo): void
     }
 
     json_response(['slots' => $resultSlots]);
+}
+
+// =========================================================
+// ADMIN: LISTAR TODAS LAS RESERVAS
+// action = admin_reservation_list
+// =========================================================
+function admin_reservation_list_controller(PDO $pdo): void
+{
+    $adminId = auth_require_login();
+    $me = user_find_by_id($pdo, $adminId);
+
+    if (!$me || !$me['is_admin']) {
+        json_response(['error' => 'No autorizado'], 403);
+    }
+
+    try {
+        $rows = reservation_find_all_for_admin($pdo);
+
+        // transformar nombres para frontend
+        $reservations = array_map(function ($r) {
+            return [
+                "id" => $r["id"],
+                "date" => $r["date"],
+                "start_time" => $r["start_time"],
+                "end_time" => $r["end_time"],
+                "status" => $r["status"],
+
+                "player_id" => $r["player_id"],
+                "player_name" => $r["player_first_name"] . " " . $r["player_last_name"],
+                "player_email" => $r["player_email"],
+
+                "provider_id" => $r["provider_id"],
+                "provider_name" => $r["provider_name"],
+
+                "court_id" => $r["court_id"],
+                "court_name" => $r["court_name"],
+            ];
+        }, $rows);
+
+        json_response([
+            "reservations" => $reservations
+        ]);
+
+    } catch (Throwable $e) {
+        error_log($e->getMessage());
+        json_response(
+            ['error' => 'Error al obtener reservas'],
+            500
+        );
+    }
+}
+
+// ======================================================
+// RESERVAS DEL PROVEEDOR (todas sus canchas)
+// ======================================================
+function reservation_list_by_provider_controller(PDO $pdo): void
+{
+    $userId = auth_require_login();
+
+    // Debe ser proveedor
+    $me = user_find_by_id($pdo, $userId);
+    if (!$me || !$me['is_provider']) {
+        json_response(['error' => 'No autorizado'], 403);
+    }
+
+    // Perfil proveedor
+    $provider = provider_find_by_user($pdo, $userId);
+    if (!$provider) {
+        json_response(['error' => 'No tienes perfil de proveedor'], 404);
+    }
+
+    // Obtener reservas de TODAS sus canchas
+    $sql = "
+        SELECT 
+            r.*,
+            c.name AS court_name,
+            c.sport AS court_sport,
+            u.first_name,
+            u.last_name
+        FROM reservations r
+        INNER JOIN courts c ON c.id = r.court_id
+        INNER JOIN users u ON u.id = r.player_id
+        WHERE c.provider_id = :pid
+        ORDER BY r.reserved_date DESC, r.start_time DESC
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute(['pid' => $provider['id']]);
+    $rows = $stmt->fetchAll();
+
+    json_response(['reservations' => $rows]);
 }

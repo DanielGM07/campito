@@ -43,3 +43,40 @@ function user_create_player(PDO $pdo, array $data): int
 
     return $userId;
 }
+
+function user_find_all_players_for_admin(PDO $pdo): array
+{
+    $sql = "
+        SELECT 
+            id,
+            first_name,
+            last_name,
+            email,
+            status,
+            created_at
+        FROM users
+        WHERE 
+            is_admin = 0
+            AND is_provider = 0
+        ORDER BY created_at DESC
+    ";
+
+    $stmt = $pdo->query($sql);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+
+
+// -----------------------------------------------------------
+// ADMIN: cambiar estado de un usuario
+// -----------------------------------------------------------
+function user_update_status(PDO $pdo, int $userId, string $status): bool
+{
+    $sql = "UPDATE users SET status = :status WHERE id = :id LIMIT 1";
+    $stmt = $pdo->prepare($sql);
+
+    return $stmt->execute([
+        ':status' => $status,
+        ':id'     => $userId
+    ]);
+}

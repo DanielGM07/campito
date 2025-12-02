@@ -24,11 +24,17 @@ import ProviderDashboardPage from './pages/provider/ProviderDashboardPage'
 import ProviderCourtsPage from './pages/provider/ProviderCourtsPage'
 import ProviderReservationsPage from './pages/provider/ProviderReservationsPage'
 import ProviderCourtSchedulePage from './pages/provider/ProviderCourtSchedulePage'
+import ProviderTournamentsPage from './pages/provider/ProviderTournamentsPage'
+import ProviderTournamentCreatePage from './pages/provider/ProviderTournamentCreatePage'
+import ProviderTournamentEditPage from "./pages/provider/ProviderTournamentEditPage"
 
 // Admin
 import AdminRoute from './routes/AdminRoute'
 import AdminProviderRequestsPage from './pages/admin/AdminProviderRequestsPage'
 import AdminProvidersPage from './pages/admin/AdminProvidersPage'
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import AdminReservationsPage from "./pages/admin/AdminReservationsPage";
+import AdminTournamentsPage from './pages/admin/AdminTournamentsPage'
 
 
 function PrivateRoute({ children }) {
@@ -218,6 +224,20 @@ export default function App() {
           </ProviderRoute>
         }
       />
+      <Route
+        path="/provider/tournaments"
+        element={<ProviderRoute><ProviderTournamentsPage /></ProviderRoute>}
+      />
+
+      <Route
+        path="/provider/tournaments/new"
+        element={<ProviderRoute><ProviderTournamentCreatePage /></ProviderRoute>}
+      />
+
+      <Route
+        path="/provider/tournaments/edit/:id"
+        element={<ProviderRoute><ProviderTournamentEditPage /></ProviderRoute>}
+      />
 
       {/* Rutas ADMIN */}
       <Route element={<AdminRoute />}>
@@ -230,8 +250,15 @@ export default function App() {
           path="/admin/providers" 
           element={<AdminProvidersPage />} 
         />
+        <Route 
+          path="/admin/users" 
+          element={<AdminUsersPage />} 
+        />
+        <Route path="/admin/reservations" element={<AdminReservationsPage />} />
+        <Route path="/admin/tournaments" element={<AdminTournamentsPage />} />
+        
       </Route>
-
+      
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

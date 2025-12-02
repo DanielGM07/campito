@@ -85,7 +85,6 @@ export default function BookCourtPage() {
 
   useEffect(() => {
     loadTeams()
-    // buscar canchas por defecto al entrar (opcional)
     searchCourts()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -110,12 +109,13 @@ export default function BookCourtPage() {
         start_time: selectedSlot.start_time,
         end_time: selectedSlot.end_time,
         type: reservationType,
-        team_id: reservationType === 'team' ? Number(selectedTeamId) : undefined,
+        players_count: 1, // 👈 clave para que el backend no tire "Campo requerido: players_count"
+        team_id:
+          reservationType === 'team' ? Number(selectedTeamId) : null,
       })
 
       setCreateSuccess('Reserva creada correctamente.')
       setSelectedSlot(null)
-      // podrías recargar slots para que desaparezca el horario recién reservado
       await loadSlots(selectedCourt)
     } catch (err) {
       setCreateError(err.message)

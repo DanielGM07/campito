@@ -48,6 +48,11 @@ export default function Sidebar() {
                 icon="🕒"
                 label="Horarios"
             />
+            <SidebarLink
+                to="/provider/tournaments"
+                icon="🏆"
+                label="Torneos"
+            />
             {/* Más adelante: reservas, torneos, reseñas, stats, etc. */}
           </div>
         </div>
@@ -110,6 +115,14 @@ export default function Sidebar() {
                 icon="🏟️"
                 label="Proveedores"
             />
+            <SidebarLink 
+                to="/admin/users" 
+                icon="👤" 
+                label="Jugadores" 
+            />
+            <SidebarLink to="/admin/reservations" icon="📅" label="Reservas" />
+            <SidebarLink to="/admin/tournaments" icon="🏆" label="Torneos" />
+
             {/* Más adelante: dashboard, usuarios, etc. */}
           </div>
         </div>

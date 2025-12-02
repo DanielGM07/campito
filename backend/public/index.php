@@ -134,6 +134,10 @@ try {
         case 'court_availability_list':
             court_availability_list_controller($pdo);
             break;
+        case 'reservation_list_by_provider':
+            reservation_list_by_provider_controller($pdo);
+            break;
+
 
         // Equipos
         case 'team_list_my':
@@ -249,6 +253,26 @@ try {
         case 'admin_provider_change_status':
             admin_provider_change_status_controller($pdo);
             break;
+
+        // ADMIN – Usuarios
+        case 'admin_user_list':
+            admin_user_list_controller($pdo);
+            break;
+
+        case 'admin_user_change_status':
+            admin_user_change_status_controller($pdo);
+            break;
+
+        // ADMIN – Reservas
+        case 'admin_reservation_list':
+            admin_reservation_list_controller($pdo);
+            break;
+
+        // ADMIN – Torneos
+        case 'admin_tournament_list':
+            admin_tournament_list_controller($pdo);
+            break;    
+
 
         default:
             json_response(['error' => 'Acción no encontrada'], 404);

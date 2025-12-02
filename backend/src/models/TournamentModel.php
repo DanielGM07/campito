@@ -126,3 +126,33 @@ function tournament_update_status(PDO $pdo, int $id, string $status): void
         'id'     => $id,
     ]);
 }
+
+function tournament_find_all_for_admin(PDO $pdo): array
+{
+    $sql = "
+        SELECT 
+            t.id,
+            t.name,
+            t.sport,
+            t.status,
+            t.start_date,
+            t.end_date,
+            
+            p.id AS provider_id,
+            p.venue_name AS provider_name,
+
+            -- contar equipos inscriptos
+            (
+                SELECT COUNT(*) 
+                FROM tournament_team tt 
+                WHERE tt.tournament_id = t.id
+            ) AS team_count
+
+        FROM tournaments t
+        INNER JOIN providers p ON p.id = t.provider_id
+        ORDER BY t.created_at DESC
+    ";
+
+    $stmt = $pdo->query($sql);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
