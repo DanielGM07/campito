@@ -10,12 +10,21 @@ import RegisterPlayerPage from './pages/auth/RegisterPlayerPage'
 // Player
 import PlayerDashboardPage from './pages/player/PlayerDashboardPage'
 import TeamsPage from './pages/player/TeamsPage'
+import ExploreTeamsPage from './pages/player/ExploreTeamsPage'
 import TournamentsPage from './pages/player/TournamentsPage'
 import ReservationsPage from './pages/player/ReservationsPage'
 import NotificationsPage from './pages/player/NotificationsPage'
 import RankingsPage from './pages/player/RankingsPage'
 import PromotionsPage from './pages/player/PromotionsPage'
 import BookCourtPage from './pages/player/BookCourtPage'
+
+// Provider
+import ProviderDashboardPage from './pages/provider/ProviderDashboardPage'
+import ProviderCourtsPage from './pages/provider/ProviderCourtsPage'
+
+// Admin
+import AdminRoute from './routes/AdminRoute'
+import AdminProviderRequestsPage from './pages/admin/AdminProviderRequestsPage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -36,6 +45,30 @@ function PrivateRoute({ children }) {
   }
 
   if (!user) return <Navigate to="/login" replace />
+
+  return <AppShell>{children}</AppShell>
+}
+
+function ProviderRoute({ children }) {
+  const { user, loading, isProvider } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <div className="auth-header">
+            <h1 className="auth-title">Cargando sesión...</h1>
+            <p className="auth-subtitle">
+              Verificando tus credenciales de proveedor, por favor esperá.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) return <Navigate to="/login" replace />
+  if (!isProvider) return <Navigate to="/dashboard" replace />
 
   return <AppShell>{children}</AppShell>
 }
@@ -101,6 +134,14 @@ export default function App() {
         }
       />
       <Route
+        path="/player/teams/explore"
+        element={
+          <PrivateRoute>
+            <ExploreTeamsPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/player/tournaments"
         element={
           <PrivateRoute>
@@ -132,6 +173,33 @@ export default function App() {
           </PrivateRoute>
         }
       />
+
+      {/* Rutas privadas proveedor */}
+      <Route
+        path="/provider/dashboard"
+        element={
+          <ProviderRoute>
+            <ProviderDashboardPage />
+          </ProviderRoute>
+        }
+      />
+      <Route
+        path="/provider/courts"
+        element={
+          <ProviderRoute>
+            <ProviderCourtsPage />
+          </ProviderRoute>
+        }
+      />
+
+      {/* Rutas ADMIN */}
+      <Route element={<AdminRoute />}>
+        {/* Más adelante podés agregar /admin/dashboard, etc. */}
+        <Route
+          path="/admin/provider-requests"
+          element={<AdminProviderRequestsPage />}
+        />
+      </Route>
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />

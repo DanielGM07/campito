@@ -17,7 +17,7 @@ function SidebarLink({ to, icon, label }) {
 }
 
 export default function Sidebar() {
-  const { isPlayer /* isProvider, isAdmin */ } = useAuth()
+  const { isPlayer, isProvider, isAdmin  } = useAuth()
 
   return (
     <aside className="sidebar">
@@ -38,6 +38,11 @@ export default function Sidebar() {
             />
             <SidebarLink to="/player/teams" icon="👥" label="Mis equipos" />
             <SidebarLink
+              to="/player/teams/explore"
+              icon="🧭"
+              label="Explorar equipos"
+            />
+            <SidebarLink
               to="/player/tournaments"
               icon="🏆"
               label="Torneos"
@@ -57,6 +62,38 @@ export default function Sidebar() {
               icon="📈"
               label="Rankings"
             />
+          </div>
+        </div>
+      )}
+
+      {isProvider && (
+        <div style={{ marginTop: 24 }}>
+          <div className="sidebar-section-title">Proveedor</div>
+          <div className="sidebar-group">
+            <SidebarLink
+              to="/provider/dashboard"
+              icon="🏢"
+              label="Inicio proveedor"
+            />
+            <SidebarLink
+              to="/provider/courts"
+              icon="⚽"
+              label="Mis canchas"
+            />
+          </div>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div style={{ marginTop: 24 }}>
+          <div className="sidebar-section-title">Admin</div>
+          <div className="sidebar-group">
+            <SidebarLink
+              to="/admin/provider-requests"
+              icon="📋"
+              label="Solicitudes de proveedores"
+            />
+            {/* Más adelante: dashboard, usuarios, etc. */}
           </div>
         </div>
       )}

@@ -125,6 +125,18 @@ try {
         case 'team_invite_member':
             team_invite_member_controller($pdo);
             break;
+        // NUEVO: invitar jugador por email o DNI
+        case 'team_invite_player':
+            team_invite_player_controller($pdo);
+            break;
+        // NUEVO: listar equipos a los que me puedo unir
+        case 'team_list_public_joinable':
+            team_list_public_joinable_controller($pdo);
+            break;
+        // NUEVO: unirse a un equipo (si hay lugar)
+        case 'team_join_request_create':
+            team_join_request_create_controller($pdo);
+            break;
         case 'team_invitations_my_pending':
             team_invitations_my_pending_controller($pdo);
             break;
@@ -133,6 +145,9 @@ try {
             break;
         case 'team_leave':
             team_leave_controller($pdo);
+            break;
+        case 'team_members_list':
+            team_members_list_controller($pdo);
             break;
 
         // Torneos

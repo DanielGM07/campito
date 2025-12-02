@@ -95,9 +95,15 @@ function team_delete_controller(PDO $pdo): void
     json_response(['message' => 'Equipo eliminado']);
 }
 
+/**
+ * INVITAR MIEMBRO POR ID (ya existía, lo ajusto)
+ *
+ * Ahora permite que cualquier integrante del equipo invite a otros,
+ * no solo el dueño.
+ */
 function team_invite_member_controller(PDO $pdo): void
 {
-    $ownerId = auth_require_login();
+    $requestingUserId = auth_require_login();
     $input   = get_json_input();
 
     $required = ['team_id', 'invited_user_id'];
@@ -107,21 +113,31 @@ function team_invite_member_controller(PDO $pdo): void
         }
     }
 
-    $team = team_find_by_id($pdo, (int)$input['team_id']);
-    if (!$team || (int)$team['owner_id'] !== $ownerId) {
-        json_response(['error' => 'Equipo no encontrado o no eres dueño'], 404);
+    $teamId        = (int)$input['team_id'];
+    $invitedUserId = (int)$input['invited_user_id'];
+
+    $team = team_find_by_id($pdo, $teamId);
+    if (!$team) {
+        json_response(['error' => 'Equipo no encontrado'], 404);
     }
 
-    $invitedUserId = (int)$input['invited_user_id'];
-    if (team_member_is_in_team($pdo, (int)$team['id'], $invitedUserId)) {
+    // NUEVO: cualquier integrante puede invitar (no solo owner)
+    $isOwner   = ((int)$team['owner_id'] === $requestingUserId);
+    $isMember  = team_member_is_in_team($pdo, $teamId, $requestingUserId);
+
+    if (!$isOwner && !$isMember) {
+        json_response(['error' => 'No formas parte del equipo'], 403);
+    }
+
+    if (team_member_is_in_team($pdo, $teamId, $invitedUserId)) {
         json_response(['error' => 'El jugador ya es integrante del equipo'], 400);
     }
 
-    if (team_invitation_exists_pending($pdo, (int)$team['id'], $invitedUserId)) {
+    if (team_invitation_exists_pending($pdo, $teamId, $invitedUserId)) {
         json_response(['error' => 'Ya existe una invitación pendiente para este jugador'], 400);
     }
 
-    $currentCount = team_member_count($pdo, (int)$team['id']);
+    $currentCount = team_member_count($pdo, $teamId);
     if ($currentCount >= (int)$team['max_members']) {
         json_response(['error' => 'El equipo ya alcanzó el máximo de integrantes'], 400);
     }
@@ -131,11 +147,90 @@ function team_invite_member_controller(PDO $pdo): void
         json_response(['error' => 'Jugador invitado no válido'], 400);
     }
 
-    $invId = team_invitation_create($pdo, (int)$team['id'], $invitedUserId, $userInvited['email']);
+    $invId = team_invitation_create($pdo, $teamId, $invitedUserId, $userInvited['email']);
 
     json_response([
         'message'        => 'Invitación enviada',
         'invitation_id'  => $invId,
+    ], 201);
+}
+
+/**
+ * NUEVO: INVITAR JUGADOR POR EMAIL O DNI
+ *
+ * Front: action=team_invite_player
+ * Body: { "team_id": X, "identifier": "email@o.dni" }
+ */
+function team_invite_player_controller(PDO $pdo): void
+{
+    $requestingUserId = auth_require_login();
+    $input            = get_json_input();
+
+    if (empty($input['team_id']) || empty($input['identifier'])) {
+        json_response(['error' => 'team_id e identifier son requeridos'], 400);
+    }
+
+    $teamId     = (int)$input['team_id'];
+    $identifier = trim((string)$input['identifier']);
+
+    $team = team_find_by_id($pdo, $teamId);
+    if (!$team) {
+        json_response(['error' => 'Equipo no encontrado'], 404);
+    }
+
+    // cualquier integrante del equipo puede invitar
+    $isOwner  = ((int)$team['owner_id'] === $requestingUserId);
+    $isMember = team_member_is_in_team($pdo, $teamId, $requestingUserId);
+
+    if (!$isOwner && !$isMember) {
+        json_response(['error' => 'No formas parte del equipo'], 403);
+    }
+
+    // Buscar jugador por email o por DNI
+    $userInvited = null;
+
+    if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+        $userInvited = user_find_by_email($pdo, $identifier);
+    } else {
+        // Asumimos que el identificador puede ser DNI (exact match)
+        $stmt = $pdo->prepare('SELECT * FROM users WHERE dni = :dni LIMIT 1');
+        $stmt->execute([':dni' => $identifier]);
+        $userInvited = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    if (!$userInvited) {
+        json_response(['error' => 'Jugador no encontrado por ese identificador'], 404);
+    }
+
+    if (!$userInvited['is_player']) {
+        json_response(['error' => 'El usuario encontrado no es jugador'], 400);
+    }
+
+    $invitedUserId = (int)$userInvited['id'];
+
+    if ($invitedUserId === $requestingUserId) {
+        json_response(['error' => 'No puedes invitarte a ti mismo'], 400);
+    }
+
+    if (team_member_is_in_team($pdo, $teamId, $invitedUserId)) {
+        json_response(['error' => 'El jugador ya es integrante del equipo'], 400);
+    }
+
+    if (team_invitation_exists_pending($pdo, $teamId, $invitedUserId)) {
+        json_response(['error' => 'Ya existe una invitación pendiente para este jugador'], 400);
+    }
+
+    $currentCount = team_member_count($pdo, $teamId);
+    if ($currentCount >= (int)$team['max_members']) {
+        json_response(['error' => 'El equipo ya alcanzó el máximo de integrantes'], 400);
+    }
+
+    $invId = team_invitation_create($pdo, $teamId, $invitedUserId, $userInvited['email']);
+
+    json_response([
+        'message'       => 'Invitación enviada',
+        'invitation_id' => $invId,
+        'invited_email' => $userInvited['email'],
     ], 201);
 }
 
@@ -212,4 +307,161 @@ function team_leave_controller(PDO $pdo): void
     team_member_remove($pdo, (int)$team['id'], $userId);
 
     json_response(['message' => 'Has abandonado el equipo']);
+}
+
+/**
+ * NUEVO: listar equipos a los que el jugador se puede unir.
+ *
+ * Regla:
+ * - No esté ya en el equipo.
+ * - El equipo no esté lleno.
+ * - (Opcional) que no esté borrado.
+ */
+function team_list_public_joinable_controller(PDO $pdo): void
+{
+    $userId = auth_require_login();
+
+    $sql = "
+        SELECT
+            t.*,
+            (
+                SELECT COUNT(*)
+                FROM team_members tm
+                WHERE tm.team_id = t.id
+            ) AS current_members
+        FROM teams t
+        WHERE
+            -- no soy miembro del equipo
+            NOT EXISTS (
+                SELECT 1
+                FROM team_members tm2
+                WHERE tm2.team_id = t.id
+                  AND tm2.user_id = :user_id
+            )
+            -- hay lugar disponible (no está lleno)
+            AND (
+                SELECT COUNT(*)
+                FROM team_members tm3
+                WHERE tm3.team_id = t.id
+            ) < t.max_members
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':user_id' => $userId]);
+    $teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    json_response(['teams' => $teams]);
+}
+
+
+/**
+ * NUEVO: unirse a un equipo (sin aprobación extra).
+ *
+ * Front: action=team_join_request_create
+ * Body: { "team_id": X, "message": "opcional" }
+ *
+ * Reglas:
+ * - Debe existir el equipo.
+ * - No debe estar ya en el equipo.
+ * - El equipo no debe estar lleno.
+ */
+function team_join_request_create_controller(PDO $pdo): void
+{
+    $userId = auth_require_login();
+    $input  = get_json_input();
+
+    if (empty($input['team_id'])) {
+        json_response(['error' => 'team_id requerido'], 400);
+    }
+
+    $teamId = (int)$input['team_id'];
+    $team   = team_find_by_id($pdo, $teamId);
+
+    if (!$team) {
+        json_response(['error' => 'Equipo no encontrado'], 404);
+    }
+
+    if (team_member_is_in_team($pdo, $teamId, $userId)) {
+        json_response(['error' => 'Ya eres integrante de este equipo'], 400);
+    }
+
+    $currentCount = team_member_count($pdo, $teamId);
+    if ($currentCount >= (int)$team['max_members']) {
+        json_response(['error' => 'El equipo ya está lleno'], 400);
+    }
+
+    // En esta versión, directamente lo unimos al equipo
+    team_member_add($pdo, $teamId, $userId);
+
+    json_response([
+        'message' => 'Te uniste al equipo correctamente',
+        'team_id' => $teamId,
+    ], 201);
+}
+
+/**
+ * Listar integrantes de un equipo donde el usuario actual participa.
+ *
+ * Front: POST action=team_members_list
+ * Body:  { "team_id": X }
+ */
+function team_members_list_controller(PDO $pdo): void
+{
+    $userId = auth_require_login();
+    $input  = get_json_input();
+
+    if (empty($input['team_id'])) {
+        json_response(['error' => 'team_id requerido'], 400);
+    }
+
+    $teamId = (int)$input['team_id'];
+
+    $team = team_find_by_id($pdo, $teamId);
+    if (!$team) {
+        json_response(['error' => 'Equipo no encontrado'], 404);
+    }
+
+    // Solo alguien que forma parte del equipo (o el dueño) puede ver los integrantes
+    $isOwner  = ((int)$team['owner_id'] === $userId);
+    $isMember = team_member_is_in_team($pdo, $teamId, $userId);
+
+    if (!$isOwner && !$isMember) {
+        json_response(['error' => 'No formas parte de este equipo'], 403);
+    }
+
+    $sql = "
+        SELECT
+            tm.user_id AS id,
+            u.first_name,
+            u.last_name,
+            u.email,
+            u.dni,
+            tm.role,
+            tm.joined_at,
+            CASE
+                WHEN u.id = :owner_id THEN 1
+                ELSE 0
+            END AS is_owner
+        FROM team_members tm
+        INNER JOIN users u ON u.id = tm.user_id
+        WHERE tm.team_id = :team_id
+        ORDER BY is_owner DESC, tm.joined_at ASC
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([
+        ':team_id'  => $teamId,
+        ':owner_id' => (int)$team['owner_id'],
+    ]);
+
+    $members = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    json_response([
+        'team'    => [
+            'id'    => $team['id'],
+            'name'  => $team['name'],
+            'sport' => $team['sport'],
+        ],
+        'members' => $members,
+    ]);
 }
