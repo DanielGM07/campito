@@ -27,6 +27,11 @@ export default function Sidebar() {
           <div className="sidebar-group">
             <SidebarLink to="/dashboard" icon="🏠" label="Inicio" />
             <SidebarLink
+              to="/player/book"
+              icon="⚽"
+              label="Reservar cancha"
+            />
+            <SidebarLink
               to="/player/reservations"
               icon="📅"
               label="Mis reservas"

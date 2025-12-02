@@ -15,6 +15,7 @@ import ReservationsPage from './pages/player/ReservationsPage'
 import NotificationsPage from './pages/player/NotificationsPage'
 import RankingsPage from './pages/player/RankingsPage'
 import PromotionsPage from './pages/player/PromotionsPage'
+import BookCourtPage from './pages/player/BookCourtPage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -72,6 +73,14 @@ export default function App() {
         element={
           <PrivateRoute>
             <PlayerDashboardPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/player/book"
+        element={
+          <PrivateRoute>
+            <BookCourtPage />
           </PrivateRoute>
         }
       />

@@ -1,8 +1,11 @@
 // File: src/pages/player/ReservationsPage.jsx
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/http'
 
 export default function ReservationsPage() {
+  const navigate = useNavigate()
+
   const [reservations, setReservations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -126,8 +129,11 @@ export default function ReservationsPage() {
                 Podés cancelar aquellas que sigan activas.
               </div>
             </div>
-            <button className="btn btn-ghost btn-sm" disabled>
-              Próximamente: reservar cancha
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => navigate('/player/book')}
+            >
+              Reservar cancha
             </button>
           </div>
 
