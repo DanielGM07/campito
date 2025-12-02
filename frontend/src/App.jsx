@@ -11,6 +11,10 @@ import RegisterPlayerPage from './pages/auth/RegisterPlayerPage'
 import PlayerDashboardPage from './pages/player/PlayerDashboardPage'
 import TeamsPage from './pages/player/TeamsPage'
 import TournamentsPage from './pages/player/TournamentsPage'
+import ReservationsPage from './pages/player/ReservationsPage'
+import NotificationsPage from './pages/player/NotificationsPage'
+import RankingsPage from './pages/player/RankingsPage'
+import PromotionsPage from './pages/player/PromotionsPage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -44,21 +48,13 @@ export default function App() {
       <Route
         path="/login"
         element={
-          user ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <LoginPage />
-          )
+          user ? <Navigate to="/dashboard" replace /> : <LoginPage />
         }
       />
       <Route
         path="/register"
         element={
-          user ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <RegisterPlayerPage />
-          )
+          user ? <Navigate to="/dashboard" replace /> : <RegisterPlayerPage />
         }
       />
 
@@ -80,6 +76,14 @@ export default function App() {
         }
       />
       <Route
+        path="/player/reservations"
+        element={
+          <PrivateRoute>
+            <ReservationsPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/player/teams"
         element={
           <PrivateRoute>
@@ -92,6 +96,30 @@ export default function App() {
         element={
           <PrivateRoute>
             <TournamentsPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/player/promotions"
+        element={
+          <PrivateRoute>
+            <PromotionsPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/player/notifications"
+        element={
+          <PrivateRoute>
+            <NotificationsPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/player/rankings"
+        element={
+          <PrivateRoute>
+            <RankingsPage />
           </PrivateRoute>
         }
       />

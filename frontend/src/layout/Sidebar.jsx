@@ -26,17 +26,35 @@ export default function Sidebar() {
           <div className="sidebar-section-title">Jugador</div>
           <div className="sidebar-group">
             <SidebarLink to="/dashboard" icon="🏠" label="Inicio" />
+            <SidebarLink
+              to="/player/reservations"
+              icon="📅"
+              label="Mis reservas"
+            />
             <SidebarLink to="/player/teams" icon="👥" label="Mis equipos" />
             <SidebarLink
               to="/player/tournaments"
               icon="🏆"
               label="Torneos"
             />
+            <SidebarLink
+              to="/player/promotions"
+              icon="🎟️"
+              label="Promociones"
+            />
+            <SidebarLink
+              to="/player/notifications"
+              icon="🔔"
+              label="Notificaciones"
+            />
+            <SidebarLink
+              to="/player/rankings"
+              icon="📈"
+              label="Rankings"
+            />
           </div>
         </div>
       )}
-
-      {/* Más adelante: grupos para Provider y Admin */}
 
       <div className="sidebar-footer">
         <div style={{ fontWeight: 500, marginBottom: 2 }}>Tip</div>

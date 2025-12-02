@@ -3,11 +3,12 @@
 USE campito_db;
 
 -- Usuarios de prueba
+-- Las contraseñas son "test"
 INSERT INTO users (first_name, last_name, dni, birth_date, email, password_hash, location, is_player, is_provider, is_admin)
 VALUES
-('Admin', 'Sistema', '00000000', '1990-01-01', 'admin@campito.test', '$2y$10$ReemplazarConHashReal', 'Buenos Aires', 0, 0, 1),
-('Juan', 'Jugador', '12345678', '1995-05-10', 'player@example.com', '$2y$10$ReemplazarConHashReal', 'Buenos Aires', 1, 0, 0),
-('Pedro', 'Proveedor', '23456789', '1992-03-15', 'proveedor@example.com', '$2y$10$ReemplazarConHashReal', 'Buenos Aires', 1, 1, 0);
+('Admin', 'Sistema', '00000000', '1990-01-01', 'admin@campito.test', '$2y$10$796ya9G9QzB4Dfq4Qr5QnOXRD.20gSyufp0dHWAjSUYduWRs8L0Ai', 'Buenos Aires', 0, 0, 1),
+('Juan', 'Jugador', '12345678', '1995-05-10', 'player@example.com', '$2y$10$796ya9G9QzB4Dfq4Qr5QnOXRD.20gSyufp0dHWAjSUYduWRs8L0Ai', 'Buenos Aires', 1, 0, 0),
+('Pedro', 'Proveedor', '23456789', '1992-03-15', 'proveedor@example.com', '$2y$10$796ya9G9QzB4Dfq4Qr5QnOXRD.20gSyufp0dHWAjSUYduWRs8L0Ai', 'Buenos Aires', 1, 1, 0);
 
 -- Proveedor de prueba
 INSERT INTO providers (user_id, venue_name, contact_phone, contact_email, address, description)
