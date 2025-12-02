@@ -1,5 +1,4 @@
-// File: frontend/src/context/AuthContext.jsx
-
+// File: src/context/AuthContext.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
 import { api } from '../api/http'
 
@@ -15,7 +14,7 @@ export function AuthProvider({ children }) {
       try {
         const res = await api.get('me')
         if (isMounted) setUser(res.user)
-      } catch (err) {
+      } catch {
         if (isMounted) setUser(null)
       } finally {
         if (isMounted) setLoading(false)
@@ -35,7 +34,7 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await api.post('auth_logout')
-    } catch (e) {
+    } catch {
       // ignore
     }
     setUser(null)
@@ -52,6 +51,9 @@ export function AuthProvider({ children }) {
     login,
     logout,
     registerPlayer,
+    isPlayer: !!user?.is_player,
+    isProvider: !!user?.is_provider,
+    isAdmin: !!user?.is_admin,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

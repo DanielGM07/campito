@@ -1,76 +1,103 @@
-// File: frontend/src/App.jsx
-
-import { Routes, Route, Navigate } from 'react-router-dom'
+// File: src/App.jsx
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
-import LoginPage from './pages/LoginPage'
-import RegisterPlayerPage from './pages/RegisterPlayerPage'
-import PlayerDashboardPage from './pages/PlayerDashboardPage'
-import TeamsPage from './pages/TeamsPage'
-import TournamentsPage from './pages/TournamentsPage'
-import ProviderDashboardPage from './pages/ProviderDashboardPage'
-import Navbar from './components/Navbar'
+import AppShell from './layout/AppShell'
+
+// Auth
+import LoginPage from './pages/auth/LoginPage'
+import RegisterPlayerPage from './pages/auth/RegisterPlayerPage'
+
+// Player
+import PlayerDashboardPage from './pages/player/PlayerDashboardPage'
+import TeamsPage from './pages/player/TeamsPage'
+import TournamentsPage from './pages/player/TournamentsPage'
 
 function PrivateRoute({ children }) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <div className="auth-header">
+            <h1 className="auth-title">Cargando sesión...</h1>
+            <p className="auth-subtitle">
+              Verificando tus credenciales, por favor esperá.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!user) return <Navigate to="/login" replace />
-  return children
+
+  return <AppShell>{children}</AppShell>
 }
 
 export default function App() {
   const { user } = useAuth()
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50">
-      <Navbar />
-      <main className="max-w-5xl mx-auto px-4 py-6">
-        <Routes>
-          <Route
-            path="/"
-            element={
-              user ? (
-                <Navigate to="/dashboard" replace />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
-          />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPlayerPage />} />
+    <Routes>
+      {/* Auth */}
+      <Route
+        path="/login"
+        element={
+          user ? (
+            <Navigate to="/dashboard" replace />
+          ) : (
+            <LoginPage />
+          )
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          user ? (
+            <Navigate to="/dashboard" replace />
+          ) : (
+            <RegisterPlayerPage />
+          )
+        }
+      />
 
-          <Route
-            path="/dashboard"
-            element={
-              <PrivateRoute>
-                <PlayerDashboardPage />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/teams"
-            element={
-              <PrivateRoute>
-                <TeamsPage />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/tournaments"
-            element={
-              <PrivateRoute>
-                <TournamentsPage />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/provider"
-            element={
-              <PrivateRoute>
-                <ProviderDashboardPage />
-              </PrivateRoute>
-            }
-          />
-        </Routes>
-      </main>
-    </div>
+      {/* Rutas privadas jugador */}
+      <Route
+        path="/"
+        element={
+          <PrivateRoute>
+            <PlayerDashboardPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <PrivateRoute>
+            <PlayerDashboardPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/player/teams"
+        element={
+          <PrivateRoute>
+            <TeamsPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/player/tournaments"
+        element={
+          <PrivateRoute>
+            <TournamentsPage />
+          </PrivateRoute>
+        }
+      />
+
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
