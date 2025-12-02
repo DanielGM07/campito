@@ -382,70 +382,183 @@ function tournament_list_provider_controller(PDO $pdo): void
 
 
 // ======================================================
-// INSCRIPCIÓN DE EQUIPO EN TORNEO (Jugador)
+// INSCRIPCIÓN DE EQUIPO EN TORNEO (Jugador - solo capitán)
 // ======================================================
 function tournament_register_team_controller(PDO $pdo): void
 {
     $userId = auth_require_login();
-
-    $input = get_json_input();
+    $input  = get_json_input();
 
     if (empty($input['tournament_id']) || empty($input['team_id'])) {
-        json_response(['error' => 'Faltan datos'], 400);
+        json_response(['error' => 'tournament_id y team_id son requeridos'], 400);
     }
 
     $tournamentId = (int)$input['tournament_id'];
-    $teamId = (int)$input['team_id'];
+    $teamId       = (int)$input['team_id'];
 
-    // Verificar que el usuario sea miembro del equipo
+    // 1) Verificar que el usuario sea CAPITÁN del equipo
     $stmt = $pdo->prepare("
-        SELECT * FROM team_members
+        SELECT role
+        FROM team_members
         WHERE team_id = :tid AND user_id = :uid
+        LIMIT 1
     ");
     $stmt->execute(['tid' => $teamId, 'uid' => $userId]);
-    if (!$stmt->fetch()) {
-        json_response(['error' => 'No perteneces a este equipo'], 403);
+    $rowRole = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$rowRole || $rowRole['role'] !== 'captain') {
+        json_response(['error' => 'Solo el capitán del equipo puede inscribirlo en un torneo'], 403);
     }
 
-    // Obtener torneo
-    $t = $pdo->prepare("SELECT * FROM tournaments WHERE id = :id LIMIT 1");
-    $t->execute(['id' => $tournamentId]);
-    $tournament = $t->fetch();
+    // 2) Obtener torneo
+    $stmt = $pdo->prepare("SELECT * FROM tournaments WHERE id = :id LIMIT 1");
+    $stmt->execute(['id' => $tournamentId]);
+    $tournament = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$tournament) {
         json_response(['error' => 'Torneo no encontrado'], 404);
     }
     if ($tournament['status'] !== 'registration_open') {
-        json_response(['error' => 'Inscripciones cerradas'], 400);
+        json_response(['error' => 'La inscripción para este torneo no está abierta'], 400);
     }
 
-    // Obtener miembros del equipo
-    $tm = $pdo->prepare("
-        SELECT COUNT(*) as total
+    $startDate = $tournament['start_date'];
+    $endDate   = $tournament['end_date'];
+
+    // 3) Obtener equipo
+    $team = team_find_by_id($pdo, $teamId);
+    if (!$team) {
+        json_response(['error' => 'Equipo no encontrado'], 404);
+    }
+
+    // Deporte debe coincidir
+    if ($team['sport'] !== $tournament['sport']) {
+        json_response(['error' => 'El deporte del equipo no coincide con el del torneo'], 400);
+    }
+
+    // 4) Validar cantidad de jugadores del equipo
+    $membersCount = team_member_count($pdo, $teamId);
+    if ($membersCount < (int)$tournament['min_players_per_team'] ||
+        $membersCount > (int)$tournament['max_players_per_team']) {
+        json_response([
+            'error' => 'La cantidad de jugadores del equipo no cumple los requisitos del torneo',
+        ], 400);
+    }
+
+    // 5) Verificar que el equipo NO esté ya inscripto en este torneo
+    $stmt = $pdo->prepare("
+        SELECT id
+        FROM tournament_registrations
+        WHERE tournament_id = :tid AND team_id = :team_id
+        LIMIT 1
+    ");
+    $stmt->execute([
+        'tid'      => $tournamentId,
+        'team_id'  => $teamId,
+    ]);
+    if ($stmt->fetch()) {
+        json_response(['error' => 'El equipo ya está inscripto en este torneo'], 400);
+    }
+
+    // 6) Verificar cupo de equipos del torneo
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) AS cnt
+        FROM tournament_registrations
+        WHERE tournament_id = :tid
+          AND status IN ('pending', 'confirmed')
+    ");
+    $stmt->execute(['tid' => $tournamentId]);
+    $regCount = (int)$stmt->fetch(PDO::FETCH_ASSOC)['cnt'];
+
+    if ($regCount >= (int)$tournament['max_teams']) {
+        json_response(['error' => 'Cupo de equipos alcanzado para este torneo'], 400);
+    }
+
+    // 7) Verificar conflictos de jugadores en OTROS torneos (fechas superpuestas)
+    //    - Buscamos jugadores del equipo
+    $stmt = $pdo->prepare("
+        SELECT user_id
         FROM team_members
         WHERE team_id = :tid
     ");
-    $tm->execute(['tid' => $teamId]);
-    $count = (int)$tm->fetch()['total'];
+    $stmt->execute(['tid' => $teamId]);
+    $playerRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if ($count < $tournament['min_players_per_team'] ||
-        $count > $tournament['max_players_per_team']) {
-        json_response(['error' => 'Cantidad de jugadores fuera de límites'], 400);
+    $conflicts = [];
+
+    if ($playerRows) {
+        $placeholders = [];
+        $params = [
+            ':current_tournament_id' => $tournamentId,
+            ':start_date'            => $startDate,
+            ':end_date'              => $endDate,
+        ];
+
+        $i = 0;
+        foreach ($playerRows as $pr) {
+            $ph = ':p' . $i;
+            $placeholders[] = $ph;
+            $params[$ph] = (int)$pr['user_id'];
+            $i++;
+        }
+
+        $inClause = implode(',', $placeholders);
+
+        $sqlConflicts = "
+            SELECT DISTINCT
+                u.id       AS player_id,
+                u.first_name,
+                u.last_name,
+                t2.id      AS tournament_id,
+                t2.name    AS tournament_name
+            FROM team_members tm2
+            INNER JOIN tournament_registrations tr2
+                ON tr2.team_id = tm2.team_id
+            INNER JOIN tournaments t2
+                ON t2.id = tr2.tournament_id
+            INNER JOIN users u
+                ON u.id = tm2.user_id
+            WHERE tm2.user_id IN ($inClause)
+              AND tr2.tournament_id <> :current_tournament_id
+              AND t2.status IN ('registration_open','registration_closed','in_progress')
+              AND NOT (
+                    t2.end_date < :start_date
+                    OR t2.start_date > :end_date
+              )
+        ";
+
+        $stmt = $pdo->prepare($sqlConflicts);
+        $stmt->execute($params);
+        $conflicts = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Crear inscripción
-    $insert = $pdo->prepare("
+    if (!empty($conflicts)) {
+        // Construimos un mensaje entendible
+        $names = [];
+        foreach ($conflicts as $c) {
+            $names[] = $c['first_name'] . ' ' . $c['last_name'] . ' (torneo: ' . $c['tournament_name'] . ')';
+        }
+        $names = array_unique($names);
+
+        json_response([
+            'error' => 'Hay jugadores de tu equipo que ya están inscriptos en otros torneos con fechas superpuestas: ' .
+                       implode('; ', $names),
+        ], 400);
+    }
+
+    // 8) Crear inscripción
+    $stmt = $pdo->prepare("
         INSERT INTO tournament_registrations (
             tournament_id, team_id, total_fee, status
         ) VALUES (
             :t, :team, :fee, 'confirmed'
         )
     ");
-    $insert->execute([
+    $stmt->execute([
         't'    => $tournamentId,
         'team' => $teamId,
-        'fee'  => $tournament['registration_fee']
+        'fee'  => $tournament['registration_fee'],
     ]);
 
-    json_response(['message' => 'Inscripción exitosa']);
+    json_response(['message' => 'Inscripción exitosa'], 201);
 }

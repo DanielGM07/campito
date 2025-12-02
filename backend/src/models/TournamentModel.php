@@ -130,22 +130,22 @@ function tournament_update_status(PDO $pdo, int $id, string $status): void
 function tournament_find_all_for_admin(PDO $pdo): array
 {
     $sql = "
-        SELECT 
+        SELECT
             t.id,
             t.name,
             t.sport,
             t.status,
             t.start_date,
             t.end_date,
-            
+
             p.id AS provider_id,
             p.venue_name AS provider_name,
 
-            -- contar equipos inscriptos
             (
-                SELECT COUNT(*) 
-                FROM tournament_team tt 
-                WHERE tt.tournament_id = t.id
+                SELECT COUNT(*)
+                FROM tournament_registrations tr
+                WHERE tr.tournament_id = t.id
+                  AND tr.status IN ('pending','confirmed')
             ) AS team_count
 
         FROM tournaments t

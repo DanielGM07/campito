@@ -38,7 +38,7 @@ import AdminTournamentsPage from './pages/admin/AdminTournamentsPage'
 
 
 function PrivateRoute({ children }) {
-  const { user, loading } = useAuth()
+  const { user, loading, isAdmin } = useAuth()
 
   if (loading) {
     return (
@@ -57,11 +57,14 @@ function PrivateRoute({ children }) {
 
   if (!user) return <Navigate to="/login" replace />
 
+  // Si es admin e intenta entrar a rutas de jugador ⇒ lo mandamos a su home admin
+  if (isAdmin) return <Navigate to="/admin/provider-requests" replace />
+
   return <AppShell>{children}</AppShell>
 }
 
 function ProviderRoute({ children }) {
-  const { user, loading, isProvider } = useAuth()
+  const { user, loading, isProvider, isAdmin } = useAuth()
 
   if (loading) {
     return (
@@ -79,13 +82,26 @@ function ProviderRoute({ children }) {
   }
 
   if (!user) return <Navigate to="/login" replace />
+
+  // Si es admin y quiere entrar a rutas de proveedor ⇒ también lo mando al home admin
+  if (isAdmin) return <Navigate to="/admin/provider-requests" replace />
+
   if (!isProvider) return <Navigate to="/dashboard" replace />
 
   return <AppShell>{children}</AppShell>
 }
 
+// Fallback inteligente para cualquier ruta desconocida
+function FallbackRoute() {
+  const { user, isAdmin } = useAuth()
+
+  if (!user) return <Navigate to="/login" replace />
+  if (isAdmin) return <Navigate to="/admin/provider-requests" replace />
+  return <Navigate to="/dashboard" replace />
+}
+
 export default function App() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
 
   return (
     <Routes>
@@ -93,7 +109,14 @@ export default function App() {
       <Route
         path="/login"
         element={
-          user ? <Navigate to="/dashboard" replace /> : <LoginPage />
+          user ? (
+            <Navigate
+              to={isAdmin ? "/admin/provider-requests" : "/dashboard"}
+              replace
+            />
+          ) : (
+            <LoginPage />
+          )
         }
       />
       <Route
@@ -109,23 +132,33 @@ export default function App() {
         }
       />
 
-      {/* Rutas privadas jugador */}
+      {/* Home / dashboard del usuario logueado */}
       <Route
         path="/"
         element={
-          <PrivateRoute>
-            <PlayerDashboardPage />
-          </PrivateRoute>
+          isAdmin ? (
+            <Navigate to="/admin/provider-requests" replace />
+          ) : (
+            <PrivateRoute>
+              <PlayerDashboardPage />
+            </PrivateRoute>
+          )
         }
       />
       <Route
         path="/dashboard"
         element={
-          <PrivateRoute>
-            <PlayerDashboardPage />
-          </PrivateRoute>
+          isAdmin ? (
+            <Navigate to="/admin/provider-requests" replace />
+          ) : (
+            <PrivateRoute>
+              <PlayerDashboardPage />
+            </PrivateRoute>
+          )
         }
       />
+
+      {/* Rutas privadas jugador */}
       <Route
         path="/player/book"
         element={
@@ -226,41 +259,55 @@ export default function App() {
       />
       <Route
         path="/provider/tournaments"
-        element={<ProviderRoute><ProviderTournamentsPage /></ProviderRoute>}
+        element={
+          <ProviderRoute>
+            <ProviderTournamentsPage />
+          </ProviderRoute>
+        }
       />
-
       <Route
         path="/provider/tournaments/new"
-        element={<ProviderRoute><ProviderTournamentCreatePage /></ProviderRoute>}
+        element={
+          <ProviderRoute>
+            <ProviderTournamentCreatePage />
+          </ProviderRoute>
+        }
       />
-
       <Route
         path="/provider/tournaments/edit/:id"
-        element={<ProviderRoute><ProviderTournamentEditPage /></ProviderRoute>}
+        element={
+          <ProviderRoute>
+            <ProviderTournamentEditPage />
+          </ProviderRoute>
+        }
       />
 
       {/* Rutas ADMIN */}
       <Route element={<AdminRoute />}>
-        {/* Más adelante podés agregar /admin/dashboard, etc. */}
         <Route
           path="/admin/provider-requests"
           element={<AdminProviderRequestsPage />}
         />
-        <Route 
-          path="/admin/providers" 
-          element={<AdminProvidersPage />} 
+        <Route
+          path="/admin/providers"
+          element={<AdminProvidersPage />}
         />
-        <Route 
-          path="/admin/users" 
-          element={<AdminUsersPage />} 
+        <Route
+          path="/admin/users"
+          element={<AdminUsersPage />}
         />
-        <Route path="/admin/reservations" element={<AdminReservationsPage />} />
-        <Route path="/admin/tournaments" element={<AdminTournamentsPage />} />
-        
+        <Route
+          path="/admin/reservations"
+          element={<AdminReservationsPage />}
+        />
+        <Route
+          path="/admin/tournaments"
+          element={<AdminTournamentsPage />}
+        />
       </Route>
-      
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+
+      {/* Fallback global */}
+      <Route path="*" element={<FallbackRoute />} />
     </Routes>
   )
 }
