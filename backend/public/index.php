@@ -53,6 +53,10 @@ try {
         case 'auth_logout':
             auth_logout();
             break;
+        // Registrar proveedor (nuevo)
+        case 'auth_register_provider':
+            auth_register_provider_controller($pdo);
+            break;
 
         // Usuario actual
         case 'me':
@@ -94,6 +98,20 @@ try {
         case 'court_list_by_provider':
             court_list_by_provider_controller($pdo);
             break;
+        // 👇 NUEVO: búsqueda de canchas para jugadores
+        case 'court_search_public':
+            court_search_public_controller($pdo);
+            break;
+        // 🔹 NUEVO: horarios (time slots) por cancha
+        case 'court_timeslots_list_by_court':
+            court_timeslots_list_by_court_controller($pdo);
+            break;
+        case 'court_timeslot_create':
+            court_timeslot_create_controller($pdo);
+            break;
+        case 'court_timeslot_delete':
+            court_timeslot_delete_controller($pdo);
+            break;
 
         // Reservas (jugador)
         case 'reservation_create':
@@ -107,6 +125,14 @@ try {
             break;
         case 'reservation_update_time_my':
             reservation_update_time_my_controller($pdo);
+            break;
+        // 🔹 NUEVO: reservas de las canchas del proveedor
+        case 'reservation_list_by_provider':
+            reservation_list_by_provider_controller($pdo);
+            break;
+        // 👇 NUEVO: listar disponibilidad de una cancha en una fecha
+        case 'court_availability_list':
+            court_availability_list_controller($pdo);
             break;
 
         // Equipos
@@ -213,6 +239,15 @@ try {
             break;
         case 'ranking_teams':
             ranking_teams_controller($pdo);
+            break;
+
+        // ADMIN - Proveedores
+        case 'admin_provider_list':
+            admin_provider_list_controller($pdo);
+            break;
+
+        case 'admin_provider_change_status':
+            admin_provider_change_status_controller($pdo);
             break;
 
         default:

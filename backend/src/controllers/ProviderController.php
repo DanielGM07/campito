@@ -46,3 +46,81 @@ function provider_profile_update_controller(PDO $pdo): void
         'provider' => $updated,
     ]);
 }
+
+/**
+ * ADMIN: listar todos los proveedores.
+ * action = admin_provider_list (GET)
+ */
+function admin_provider_list_controller(PDO $pdo): void
+{
+    $adminId = auth_require_login();
+    $me = user_find_by_id($pdo, $adminId);
+
+    if (!$me || !$me['is_admin']) {
+        json_response(['error' => 'No autorizado'], 403);
+    }
+
+    try {
+        $providers = provider_find_all_for_admin($pdo);
+
+        json_response([
+            'providers' => $providers,
+        ]);
+    } catch (Throwable $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Error al obtener proveedores'], 500);
+    }
+}
+
+/**
+ * ADMIN: cambiar estado de un proveedor.
+ * action = admin_provider_change_status (POST)
+ * body JSON: { "provider_id": 1, "status": "suspended" }
+ */
+function admin_provider_change_status_controller(PDO $pdo): void
+{
+    $adminId = auth_require_login();
+    $me = user_find_by_id($pdo, $adminId);
+
+    if (!$me || !$me['is_admin']) {
+        json_response(['error' => 'No autorizado'], 403);
+    }
+
+    $input = get_json_input();
+
+    if (empty($input['provider_id']) || empty($input['status'])) {
+        json_response(['error' => 'provider_id y status son requeridos'], 400);
+    }
+
+    $providerId = (int) $input['provider_id'];
+    $status     = (string) $input['status'];
+
+    $allowedStatuses = ['active', 'suspended', 'deleted'];
+    if (!in_array($status, $allowedStatuses, true)) {
+        json_response([
+            'error'   => 'Estado inválido',
+            'allowed' => $allowedStatuses,
+        ], 400);
+    }
+
+    // Verificar que el proveedor exista
+    $provider = provider_find_by_id($pdo, $providerId);
+    if (!$provider) {
+        json_response(['error' => 'Proveedor no encontrado'], 404);
+    }
+
+    try {
+        $ok = provider_update_status($pdo, $providerId, $status);
+
+        if (!$ok) {
+            json_response(['error' => 'No se pudo actualizar el estado'], 500);
+        }
+
+        json_response([
+            'message' => 'Estado actualizado correctamente',
+        ]);
+    } catch (Throwable $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Error al actualizar el estado del proveedor'], 500);
+    }
+}

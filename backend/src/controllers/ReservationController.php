@@ -176,3 +176,136 @@ function reservation_update_time_my_controller(PDO $pdo): void
         'reservation' => $updated,
     ]);
 }
+
+// NUEVO: listar reservas de las canchas del proveedor logueado
+function reservation_list_by_provider_controller(PDO $pdo): void
+{
+    $userId = auth_require_login();
+
+    // Verificar que sea proveedor
+    $me = user_find_by_id($pdo, $userId);
+    if (!$me || !$me['is_provider']) {
+        json_response(['error' => 'No autorizado'], 403);
+    }
+
+    // Buscar perfil de proveedor
+    $provider = provider_find_by_user($pdo, $userId);
+    if (!$provider) {
+        json_response(['error' => 'No se encontró perfil de proveedor'], 404);
+    }
+
+    $sql = "
+        SELECT 
+            r.*,
+            c.name       AS court_name,
+            c.sport      AS court_sport,
+            u.first_name AS player_first_name,
+            u.last_name  AS player_last_name
+        FROM reservations r
+        INNER JOIN courts c ON c.id = r.court_id
+        INNER JOIN users u  ON u.id = r.player_id
+        WHERE c.provider_id = :provider_id
+        ORDER BY r.reserved_date DESC, r.start_time DESC
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute(['provider_id' => $provider['id']]);
+    $rows = $stmt->fetchAll();
+
+    json_response(['reservations' => $rows]);
+}
+
+function court_availability_list_controller(PDO $pdo): void
+{
+    auth_require_login();
+    $input = get_json_input();
+
+    if (empty($input['court_id']) || empty($input['date'])) {
+        json_response(['error' => 'court_id y date son requeridos'], 400);
+    }
+
+    $courtId = (int)$input['court_id'];
+    $date    = $input['date'];
+
+    // Validar formato de fecha simple
+    $dt = DateTime::createFromFormat('Y-m-d', $date);
+    if (!$dt || $dt->format('Y-m-d') !== $date) {
+        json_response(['error' => 'Formato de fecha inválido, usar YYYY-MM-DD'], 400);
+    }
+
+    // weekday: 0 (domingo) a 6 (sábado) como en court_time_slots
+    $weekday = (int)$dt->format('w');
+
+    // 1) Buscar todos los slots base configurados para esa cancha y día
+    $sqlSlots = "
+        SELECT
+            id,
+            start_time,
+            end_time,
+            is_available
+        FROM court_time_slots
+        WHERE court_id = :court_id
+          AND weekday = :weekday
+          AND is_available = 1
+        ORDER BY start_time ASC
+    ";
+    $stmtSlots = $pdo->prepare($sqlSlots);
+    $stmtSlots->execute([
+        ':court_id' => $courtId,
+        ':weekday'  => $weekday,
+    ]);
+    $slots = $stmtSlots->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    if (empty($slots)) {
+        // No hay configuración de horarios para esa cancha / día
+        json_response(['slots' => []]);
+    }
+
+    // 2) Reservas ya hechas para ese día y cancha
+    // Consideramos ocupados los estados: pending, confirmed, in_progress, completed
+    $sqlRes = "
+        SELECT
+            start_time,
+            end_time
+        FROM reservations
+        WHERE court_id = :court_id
+          AND reserved_date = :reserved_date
+          AND status IN ('pending', 'confirmed', 'in_progress', 'completed')
+    ";
+    $stmtRes = $pdo->prepare($sqlRes);
+    $stmtRes->execute([
+        ':court_id'      => $courtId,
+        ':reserved_date' => $date,
+    ]);
+    $reservations = $stmtRes->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // 3) Marcar slots ocupados según superposición de horarios
+    $resultSlots = [];
+
+    foreach ($slots as $slot) {
+        $slotStart = $slot['start_time']; // "HH:MM:SS"
+        $slotEnd   = $slot['end_time'];   // "HH:MM:SS"
+
+        $available = true;
+
+        foreach ($reservations as $res) {
+            $resStart = $res['start_time'];
+            $resEnd   = $res['end_time'];
+
+            // Superposición: inicio del slot < fin de reserva && fin del slot > inicio de reserva
+            if ($slotStart < $resEnd && $slotEnd > $resStart) {
+                $available = false;
+                break;
+            }
+        }
+
+        $resultSlots[] = [
+            'id'           => (int)$slot['id'],
+            'start_time'   => $slotStart,
+            'end_time'     => $slotEnd,
+            'is_available' => $available,
+        ];
+    }
+
+    json_response(['slots' => $resultSlots]);
+}

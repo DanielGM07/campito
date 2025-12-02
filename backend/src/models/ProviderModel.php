@@ -58,3 +58,47 @@ function provider_find_by_id(PDO $pdo, int $id): ?array
     $row = $stmt->fetch();
     return $row ?: null;
 }
+
+function provider_find_all_for_admin(PDO $pdo): array
+{
+    $sql = "
+        SELECT 
+            p.id,
+            p.user_id,
+            p.venue_name,
+            p.contact_phone,
+            p.contact_email,
+            p.address,
+            p.description,
+            p.status,
+            p.created_at,
+            p.updated_at,
+            u.first_name AS user_first_name,
+            u.last_name  AS user_last_name,
+            u.email      AS user_email
+        FROM providers p
+        INNER JOIN users u ON u.id = p.user_id
+        ORDER BY p.created_at DESC
+    ";
+
+    $stmt = $pdo->query($sql);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Actualiza el estado de un proveedor (active / suspended / deleted).
+ */
+function provider_update_status(PDO $pdo, int $providerId, string $status): bool
+{
+    $stmt = $pdo->prepare("
+        UPDATE providers
+        SET status = :status
+        WHERE id = :id
+        LIMIT 1
+    ");
+
+    return $stmt->execute([
+        'status' => $status,
+        'id'     => $providerId,
+    ]);
+}
