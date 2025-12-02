@@ -17,11 +17,41 @@ function SidebarLink({ to, icon, label }) {
 }
 
 export default function Sidebar() {
-  const { isPlayer, isProvider, isAdmin  } = useAuth()
+  const { isPlayer, isProvider, isAdmin } = useAuth()
 
   return (
     <aside className="sidebar">
-      {isPlayer && (
+      {/* Prioridad: si es provider, mostramos SOLO provider.
+          Si no es provider pero sí player, mostramos player. */}
+      {isProvider ? (
+        <div>
+          <div className="sidebar-section-title">Proveedor</div>
+          <div className="sidebar-group">
+            <SidebarLink
+              to="/provider/dashboard"
+              icon="🏢"
+              label="Inicio proveedor"
+            />
+            <SidebarLink
+              to="/provider/courts"
+              icon="⚽"
+              label="Mis canchas"
+            />
+            {/* 🔹 NUEVO */}
+            <SidebarLink
+                to="/provider/reservations"
+                icon="📅"
+                label="Reservas"
+            />
+            <SidebarLink
+                to="/provider/courts/schedule"
+                icon="🕒"
+                label="Horarios"
+            />
+            {/* Más adelante: reservas, torneos, reseñas, stats, etc. */}
+          </div>
+        </div>
+      ) : isPlayer ? (
         <div>
           <div className="sidebar-section-title">Jugador</div>
           <div className="sidebar-group">
@@ -64,25 +94,7 @@ export default function Sidebar() {
             />
           </div>
         </div>
-      )}
-
-      {isProvider && (
-        <div style={{ marginTop: 24 }}>
-          <div className="sidebar-section-title">Proveedor</div>
-          <div className="sidebar-group">
-            <SidebarLink
-              to="/provider/dashboard"
-              icon="🏢"
-              label="Inicio proveedor"
-            />
-            <SidebarLink
-              to="/provider/courts"
-              icon="⚽"
-              label="Mis canchas"
-            />
-          </div>
-        </div>
-      )}
+      ) : null}
 
       {isAdmin && (
         <div style={{ marginTop: 24 }}>
@@ -92,6 +104,11 @@ export default function Sidebar() {
               to="/admin/provider-requests"
               icon="📋"
               label="Solicitudes de proveedores"
+            />
+            <SidebarLink
+                to="/admin/providers"
+                icon="🏟️"
+                label="Proveedores"
             />
             {/* Más adelante: dashboard, usuarios, etc. */}
           </div>

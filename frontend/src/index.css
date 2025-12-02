@@ -481,3 +481,155 @@ a {
   transform: translateX(22px);
   background: #e5e7eb;
 }
+
+/* ---------- TABLA DE SOLICITUDES ADMIN ---------- */
+
+.requests-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: var(--surface);
+}
+
+.requests-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.requests-table thead {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.requests-table th,
+.requests-table td {
+  padding: 9px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.requests-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.requests-table tbody tr {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.requests-table tbody tr:hover {
+  background: rgba(148, 163, 184, 0.07);
+  transform: translateY(-1px);
+}
+
+.requests-table td:last-child,
+.requests-table th:last-child {
+  text-align: right;
+}
+
+.description-clamp {
+  max-width: 260px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---------- BOTÓN PELIGRO / DANGER ---------- */
+
+.btn-danger {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: #fef2f2;
+  box-shadow: 0 16px 30px rgba(220, 38, 38, 0.45);
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #b91c1c, #dc2626);
+  transform: translateY(-1px);
+}
+
+/* ---------- MODAL ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+
+.modal {
+  width: 100%;
+  max-width: 460px;
+  border-radius: 20px;
+  background: radial-gradient(
+      circle at top left,
+      rgba(0, 207, 245, 0.12),
+      transparent 60%
+    ),
+    var(--surface);
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  box-shadow: var(--shadow-soft);
+  padding: 16px 18px 18px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.modal-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.modal-body {
+  font-size: 13px;
+}
+
+.modal-summary {
+  padding: 10px 11px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.modal-summary-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.modal-summary-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.modal-summary-address {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.modal-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

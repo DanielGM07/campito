@@ -6,6 +6,7 @@ import AppShell from './layout/AppShell'
 // Auth
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPlayerPage from './pages/auth/RegisterPlayerPage'
+import RegisterProviderPage from "./pages/auth/RegisterProviderPage"
 
 // Player
 import PlayerDashboardPage from './pages/player/PlayerDashboardPage'
@@ -21,10 +22,14 @@ import BookCourtPage from './pages/player/BookCourtPage'
 // Provider
 import ProviderDashboardPage from './pages/provider/ProviderDashboardPage'
 import ProviderCourtsPage from './pages/provider/ProviderCourtsPage'
+import ProviderReservationsPage from './pages/provider/ProviderReservationsPage'
+import ProviderCourtSchedulePage from './pages/provider/ProviderCourtSchedulePage'
 
 // Admin
 import AdminRoute from './routes/AdminRoute'
 import AdminProviderRequestsPage from './pages/admin/AdminProviderRequestsPage'
+import AdminProvidersPage from './pages/admin/AdminProvidersPage'
+
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -89,6 +94,12 @@ export default function App() {
         path="/register"
         element={
           user ? <Navigate to="/dashboard" replace /> : <RegisterPlayerPage />
+        }
+      />
+      <Route
+        path="/register/provider"
+        element={
+          user ? <Navigate to="/dashboard" replace /> : <RegisterProviderPage />
         }
       />
 
@@ -191,6 +202,22 @@ export default function App() {
           </ProviderRoute>
         }
       />
+      <Route
+        path="/provider/reservations"
+        element={
+          <ProviderRoute>
+            <ProviderReservationsPage />
+          </ProviderRoute>
+        }
+      />
+      <Route
+        path="/provider/courts/schedule"
+        element={
+          <ProviderRoute>
+            <ProviderCourtSchedulePage />
+          </ProviderRoute>
+        }
+      />
 
       {/* Rutas ADMIN */}
       <Route element={<AdminRoute />}>
@@ -198,6 +225,10 @@ export default function App() {
         <Route
           path="/admin/provider-requests"
           element={<AdminProviderRequestsPage />}
+        />
+        <Route 
+          path="/admin/providers" 
+          element={<AdminProvidersPage />} 
         />
       </Route>
 

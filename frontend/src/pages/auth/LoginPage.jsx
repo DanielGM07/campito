@@ -3,6 +3,48 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
+/* ------------------ MODAL PARA PROVEEDORES NO APROBADOS ------------------ */
+function PendingApprovalModal({ message, onClose }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+      }}
+    >
+      <div
+        className="card"
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          padding: 20,
+          textAlign: "center",
+          borderRadius: 18,
+        }}
+      >
+        <h2 className="auth-title" style={{ marginBottom: 6 }}>
+          Solicitud pendiente
+        </h2>
+        <p className="auth-subtitle" style={{ marginBottom: 18 }}>
+          {message || "Tu cuenta aún no fue aprobada por un administrador."}
+        </p>
+
+        <button className="btn btn-primary" onClick={onClose}>
+          Entendido
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------ LOGIN PAGE ------------------------------ */
+
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -12,15 +54,24 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  // Para mostrar el modal de proveedor no aprobado
+  const [pendingModal, setPendingModal] = useState(null)
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
+
     try {
       await login(email, password)
       navigate('/dashboard')
     } catch (e2) {
-      setError(e2.message)
+      // Si backend devuelve 403 con mensaje de proveedor pendiente
+      if (e2.status === 403 && e2.message.includes("pendiente")) {
+        setPendingModal(e2.message)
+      } else {
+        setError(e2.message)
+      }
     } finally {
       setLoading(false)
     }
@@ -92,13 +143,40 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="auth-footer-text">
-          ¿No tenés cuenta?{' '}
-          <Link to="/register" className="auth-link">
-            Registrate como jugador
-          </Link>
-        </p>
+        <div className="auth-footer-text" style={{ marginTop: 16 }}>
+          ¿No tenés cuenta?
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+            
+            <Link
+              to="/register"
+              className="auth-link"
+              style={{ fontSize: 13, textAlign: "center" }}
+            >
+              Registrarme como jugador
+            </Link>
+
+            <Link
+              to="/register/provider"
+              className="auth-link"
+              style={{
+                fontSize: 13,
+                textAlign: "center",
+                color: "var(--neon)",
+              }}
+            >
+              Registrarme como proveedor
+            </Link>
+          </div>
+        </div>
       </div>
+
+      {/* ---------- MODAL ---------- */}
+      {pendingModal && (
+        <PendingApprovalModal
+          message={pendingModal}
+          onClose={() => setPendingModal(null)}
+        />
+      )}
     </div>
   )
 }
