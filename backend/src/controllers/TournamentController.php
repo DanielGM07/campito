@@ -12,10 +12,10 @@ require_once __DIR__ . '/../models/TournamentRegistrationModel.php';
 function tournament_list_public_controller(PDO $pdo): void
 {
     $filters = [
-        'sport'    => $_GET['sport']    ?? null,
-        'status'   => $_GET['status']   ?? 'registration_open',
-        'from_date'=> $_GET['from_date']?? null,
-        'to_date'  => $_GET['to_date']  ?? null,
+        'sport'     => $_GET['sport']     ?? null,
+        'status'    => $_GET['status']    ?? 'registration_open',
+        'from_date' => $_GET['from_date'] ?? null,
+        'to_date'   => $_GET['to_date']   ?? null,
     ];
     $list = tournament_list_public($pdo, $filters);
     json_response(['tournaments' => $list]);
@@ -32,64 +32,6 @@ function tournament_detail_controller(PDO $pdo): void
     }
     json_response(['tournament' => $tour]);
 }
-
-// function tournament_register_team_controller(PDO $pdo): void
-// {
-//     $userId = auth_require_login();
-//     $input  = get_json_input();
-
-//     $required = ['tournament_id', 'team_id'];
-//     foreach ($required as $r) {
-//         if (empty($input[$r])) {
-//             json_response(['error' => "Campo requerido: $r"], 400);
-//         }
-//     }
-
-//     $tournament = tournament_find_by_id($pdo, (int)$input['tournament_id']);
-//     if (!$tournament) {
-//         json_response(['error' => 'Torneo no encontrado'], 404);
-//     }
-
-//     if ($tournament['status'] !== 'registration_open') {
-//         json_response(['error' => 'La inscripción no está abierta'], 400);
-//     }
-
-//     $team = team_find_by_id($pdo, (int)$input['team_id']);
-//     if (!$team) {
-//         json_response(['error' => 'Equipo no encontrado'], 404);
-//     }
-
-//     if ((int)$team['owner_id'] !== $userId && !team_member_is_in_team($pdo, (int)$team['id'], $userId)) {
-//         json_response(['error' => 'No perteneces a ese equipo'], 403);
-//     }
-
-//     if ($team['sport'] !== $tournament['sport']) {
-//         json_response(['error' => 'El deporte del equipo no coincide con el del torneo'], 400);
-//     }
-
-//     $membersCount = team_member_count($pdo, (int)$team['id']);
-//     if ($membersCount < (int)$tournament['min_players_per_team'] || $membersCount > (int)$tournament['max_players_per_team']) {
-//         json_response(['error' => 'La cantidad de jugadores del equipo no cumple los requisitos del torneo'], 400);
-//     }
-
-//     $currentReg = tournament_registration_count($pdo, (int)$tournament['id']);
-//     if ($currentReg >= (int)$tournament['max_teams']) {
-//         json_response(['error' => 'Cupo de equipos alcanzado'], 400);
-//     }
-
-//     if (tournament_registration_exists($pdo, (int)$tournament['id'], (int)$team['id'])) {
-//         json_response(['error' => 'El equipo ya está inscripto en este torneo'], 400);
-//     }
-
-//     $fee = (float)$tournament['registration_fee'];
-
-//     $regId = tournament_registration_create($pdo, (int)$tournament['id'], (int)$team['id'], $fee);
-
-//     json_response([
-//         'message'              => 'Equipo inscripto al torneo',
-//         'registration_id'      => $regId,
-//     ], 201);
-// }
 
 function tournament_list_my_teams_controller(PDO $pdo): void
 {
@@ -108,8 +50,9 @@ function tournament_list_my_teams_controller(PDO $pdo): void
     json_response(['teams_tournaments' => $results]);
 }
 
-// Proveedor
-
+// ======================================================
+// Helpers Provider
+// ======================================================
 function provider_get_from_user(PDO $pdo, int $userId): array
 {
     $user = user_find_by_id($pdo, $userId);
@@ -123,46 +66,36 @@ function provider_get_from_user(PDO $pdo, int $userId): array
     return $provider;
 }
 
-// function tournament_create_provider_controller(PDO $pdo): void
-// {
-//     $userId   = auth_require_login();
-//     $provider = provider_get_from_user($pdo, $userId);
+// ======================================================
+// LISTAR TORNEOS DEL PROVEEDOR
+// ======================================================
+function tournament_list_provider_controller(PDO $pdo): void
+{
+    $userId = auth_require_login();
+    $me = user_find_by_id($pdo, $userId);
 
-//     $input = get_json_input();
-//     $required = [
-//         'name','sport','start_date','end_date',
-//         'max_teams','min_players_per_team','max_players_per_team','registration_fee'
-//     ];
-//     foreach ($required as $r) {
-//         if (empty($input[$r])) {
-//             json_response(['error' => "Campo requerido: $r"], 400);
-//         }
-//     }
+    if (!$me || !$me['is_provider']) {
+        json_response(['error' => 'No autorizado'], 403);
+    }
 
-//     $data = [
-//         'name'                 => $input['name'],
-//         'sport'                => $input['sport'],
-//         'description'          => $input['description'] ?? null,
-//         'rules'                => $input['rules'] ?? null,
-//         'prizes'               => $input['prizes'] ?? null,
-//         'venue_info'           => $input['venue_info'] ?? $provider['venue_name'],
-//         'start_date'           => $input['start_date'],
-//         'end_date'             => $input['end_date'],
-//         'max_teams'            => (int)$input['max_teams'],
-//         'min_players_per_team' => (int)$input['min_players_per_team'],
-//         'max_players_per_team' => (int)$input['max_players_per_team'],
-//         'registration_fee'     => (float)$input['registration_fee'],
-//     ];
+    $provider = provider_find_by_user($pdo, $userId);
 
-//     $id = tournament_create($pdo, (int)$provider['id'], $data);
-//     $tour = tournament_find_by_id($pdo, $id);
+    $stmt = $pdo->prepare("
+        SELECT *
+        FROM tournaments
+        WHERE provider_id = :pid
+        ORDER BY created_at DESC
+    ");
 
-//     json_response([
-//         'message'   => 'Torneo creado',
-//         'tournament'=> $tour,
-//     ], 201);
-// }
+    $stmt->execute(['pid' => $provider['id']]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    json_response(['tournaments' => $rows]);
+}
+
+// ======================================================
+// ACTUALIZAR TORNEO (Proveedor)
+// ======================================================
 function tournament_update_provider_controller(PDO $pdo): void
 {
     $userId   = auth_require_login();
@@ -206,6 +139,9 @@ function tournament_update_provider_controller(PDO $pdo): void
     ]);
 }
 
+// ======================================================
+// CAMBIAR STATUS TORNEO (Proveedor)
+// ======================================================
 function tournament_change_status_provider_controller(PDO $pdo): void
 {
     $userId   = auth_require_login();
@@ -235,18 +171,11 @@ function tournament_change_status_provider_controller(PDO $pdo): void
     ]);
 }
 
-// function tournament_list_provider_controller(PDO $pdo): void
-// {
-//     $userId   = auth_require_login();
-//     $provider = provider_get_from_user($pdo, $userId);
-
-//     $list = tournament_list_by_provider($pdo, (int)$provider['id']);
-//     json_response(['tournaments' => $list]);
-// }
-
+// ======================================================
+// ADMIN: LISTAR TODOS LOS TORNEOS
+// ======================================================
 function admin_tournament_list_controller(PDO $pdo): void
 {
-    // debe ser admin
     $adminId = auth_require_login();
     $me = user_find_by_id($pdo, $adminId);
 
@@ -257,7 +186,6 @@ function admin_tournament_list_controller(PDO $pdo): void
     try {
         $rows = tournament_find_all_for_admin($pdo);
 
-        // normalización para frontend
         $tournaments = array_map(function ($t) {
             return [
                 "id"            => $t["id"],
@@ -266,29 +194,22 @@ function admin_tournament_list_controller(PDO $pdo): void
                 "status"        => $t["status"],
                 "start_date"    => $t["start_date"],
                 "end_date"      => $t["end_date"],
-
                 "provider_id"   => $t["provider_id"],
                 "provider_name" => $t["provider_name"],
-
                 "team_count"    => (int)$t["team_count"],
             ];
         }, $rows);
 
-        json_response([
-            "tournaments" => $tournaments
-        ]);
+        json_response(["tournaments" => $tournaments]);
 
     } catch (Throwable $e) {
         error_log($e->getMessage());
-        json_response(
-            ["error" => "Error al obtener torneos"],
-            500
-        );
+        json_response(["error" => "Error al obtener torneos"], 500);
     }
 }
 
 // ======================================================
-// CREAR TORNEO (Proveedor)
+// CREAR TORNEO (Proveedor) + BLOQUEO HORARIO (Opción A)
 // ======================================================
 function tournament_create_provider_controller(PDO $pdo): void
 {
@@ -308,81 +229,146 @@ function tournament_create_provider_controller(PDO $pdo): void
 
     $required = [
         'name', 'sport', 'description', 'rules', 'prizes',
-        'start_date', 'end_date', 'max_teams',
-        'min_players_per_team', 'max_players_per_team',
+        'start_date', 'end_date',
+        'start_time', 'end_time',
+        'court_id',
+        'max_teams', 'min_players_per_team', 'max_players_per_team',
         'registration_fee'
     ];
 
     foreach ($required as $r) {
-        if (empty($input[$r])) {
+        if (!isset($input[$r]) || $input[$r] === '') {
             json_response(['error' => "Campo requerido: $r"], 400);
         }
     }
 
-    $stmt = $pdo->prepare("
-        INSERT INTO tournaments (
-            provider_id, name, sport, description, rules, prizes,
-            venue_info, start_date, end_date,
-            max_teams, min_players_per_team, max_players_per_team,
-            registration_fee
-        ) VALUES (
-            :provider_id, :name, :sport, :description, :rules, :prizes,
-            :venue_info, :start_date, :end_date,
-            :max_teams, :min_players_per_team, :max_players_per_team,
-            :registration_fee
-        )
-    ");
-
-    $stmt->execute([
-        'provider_id'           => $provider['id'],
-        'name'                  => $input['name'],
-        'sport'                 => $input['sport'],
-        'description'           => $input['description'],
-        'rules'                 => $input['rules'],
-        'prizes'                => $input['prizes'],
-        'venue_info'            => $input['venue_info'] ?? '',
-        'start_date'            => $input['start_date'],
-        'end_date'              => $input['end_date'],
-        'max_teams'             => $input['max_teams'],
-        'min_players_per_team'  => $input['min_players_per_team'],
-        'max_players_per_team'  => $input['max_players_per_team'],
-        'registration_fee'      => $input['registration_fee']
-    ]);
-
-    json_response(['message' => 'Torneo creado'], 201);
-}
-
-
-// ======================================================
-// LISTAR TORNEOS DEL PROVEEDOR
-// ======================================================
-function tournament_list_provider_controller(PDO $pdo): void
-{
-    $userId = auth_require_login();
-    $me = user_find_by_id($pdo, $userId);
-
-    if (!$me || !$me['is_provider']) {
-        json_response(['error' => 'No autorizado'], 403);
+    // Validaciones básicas de fechas/horas
+    if ($input['end_date'] < $input['start_date']) {
+        json_response(['error' => 'La fecha fin no puede ser menor a la fecha inicio'], 400);
+    }
+    if ($input['end_time'] <= $input['start_time']) {
+        json_response(['error' => 'La hora fin debe ser mayor que la hora inicio'], 400);
     }
 
-    $provider = provider_find_by_user($pdo, $userId);
+    $courtId = (int)$input['court_id'];
 
-    $stmt = $pdo->prepare("
-        SELECT *
-        FROM tournaments
-        WHERE provider_id = :pid
-        ORDER BY created_at DESC
+    // Verificar que la cancha pertenezca al proveedor y esté activa
+    $stmtCourt = $pdo->prepare("
+        SELECT c.*
+        FROM courts c
+        WHERE c.id = :court_id
+          AND c.provider_id = :provider_id
+          AND c.status = 'active'
+        LIMIT 1
     ");
+    $stmtCourt->execute([
+        'court_id'    => $courtId,
+        'provider_id' => (int)$provider['id'],
+    ]);
+    $court = $stmtCourt->fetch(PDO::FETCH_ASSOC);
+    if (!$court) {
+        json_response(['error' => 'Cancha inválida o no pertenece a tu sede'], 400);
+    }
 
-    $stmt->execute(['pid' => $provider['id']]);
-    $rows = $stmt->fetchAll();
+    // (opcional pero recomendado) Deporte debe coincidir con la cancha
+    if (($court['sport'] ?? null) !== $input['sport']) {
+        json_response(['error' => 'El deporte del torneo debe coincidir con el deporte de la cancha'], 400);
+    }
 
-    json_response(['tournaments' => $rows]);
+    try {
+        $pdo->beginTransaction();
+
+        // Crear torneo
+        $stmt = $pdo->prepare("
+            INSERT INTO tournaments (
+                provider_id, name, sport, description, rules, prizes,
+                venue_info, start_date, end_date,
+                max_teams, min_players_per_team, max_players_per_team,
+                registration_fee,
+                status
+            ) VALUES (
+                :provider_id, :name, :sport, :description, :rules, :prizes,
+                :venue_info, :start_date, :end_date,
+                :max_teams, :min_players_per_team, :max_players_per_team,
+                :registration_fee,
+                'registration_open'
+            )
+        ");
+
+        $stmt->execute([
+            'provider_id'          => (int)$provider['id'],
+            'name'                 => $input['name'],
+            'sport'                => $input['sport'],
+            'description'          => $input['description'],
+            'rules'                => $input['rules'],
+            'prizes'               => $input['prizes'],
+            'venue_info'           => $input['venue_info'] ?? '',
+            'start_date'           => $input['start_date'],
+            'end_date'             => $input['end_date'],
+            'max_teams'            => (int)$input['max_teams'],
+            'min_players_per_team' => (int)$input['min_players_per_team'],
+            'max_players_per_team' => (int)$input['max_players_per_team'],
+            'registration_fee'     => (float)$input['registration_fee'],
+        ]);
+
+        $tournamentId = (int)$pdo->lastInsertId();
+
+        // Generar bloques (matches) de 90 minutos entre start_time y end_time para cada día
+        $startDate = new DateTime($input['start_date']);
+        $endDate   = new DateTime($input['end_date']);
+        $startTime = $input['start_time']; // "HH:MM"
+        $endTime   = $input['end_time'];   // "HH:MM"
+        $interval  = new DateInterval('PT90M');
+
+        $insertMatch = $pdo->prepare("
+            INSERT INTO matches (
+                tournament_id,
+                court_id,
+                team_home_id,
+                team_away_id,
+                match_datetime,
+                status
+            ) VALUES (
+                :tournament_id,
+                :court_id,
+                NULL,
+                NULL,
+                :match_datetime,
+                'scheduled'
+            )
+        ");
+
+        for ($date = clone $startDate; $date <= $endDate; $date->modify('+1 day')) {
+            $current = new DateTime($date->format('Y-m-d') . ' ' . $startTime);
+            $limit   = new DateTime($date->format('Y-m-d') . ' ' . $endTime);
+
+            while ($current < $limit) {
+                $insertMatch->execute([
+                    'tournament_id'  => $tournamentId,
+                    'court_id'       => $courtId,
+                    'match_datetime' => $current->format('Y-m-d H:i:s'),
+                ]);
+                $current->add($interval);
+            }
+        }
+
+        $pdo->commit();
+
+        json_response([
+            'message'      => 'Torneo creado y horarios bloqueados correctamente',
+            'tournament_id'=> $tournamentId,
+        ], 201);
+
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        error_log($e->getMessage());
+        json_response(['error' => 'Error al crear torneo'], 500);
+    }
 }
-
 
 // ======================================================
 // INSCRIPCIÓN DE EQUIPO EN TORNEO (Jugador - solo capitán)
+// (sin cambios por ahora)
 // ======================================================
 function tournament_register_team_controller(PDO $pdo): void
 {
@@ -460,7 +446,7 @@ function tournament_register_team_controller(PDO $pdo): void
         json_response(['error' => 'El equipo ya está inscripto en este torneo'], 400);
     }
 
-    // 6) Verificar cupo de equipos del torneo
+    // 6) Verificar cupo
     $stmt = $pdo->prepare("
         SELECT COUNT(*) AS cnt
         FROM tournament_registrations
@@ -474,8 +460,7 @@ function tournament_register_team_controller(PDO $pdo): void
         json_response(['error' => 'Cupo de equipos alcanzado para este torneo'], 400);
     }
 
-    // 7) Verificar conflictos de jugadores en OTROS torneos (fechas superpuestas)
-    //    - Buscamos jugadores del equipo
+    // 7) Conflictos de jugadores en otros torneos (fechas)
     $stmt = $pdo->prepare("
         SELECT user_id
         FROM team_members
@@ -485,7 +470,6 @@ function tournament_register_team_controller(PDO $pdo): void
     $playerRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $conflicts = [];
-
     if ($playerRows) {
         $placeholders = [];
         $params = [
@@ -533,7 +517,6 @@ function tournament_register_team_controller(PDO $pdo): void
     }
 
     if (!empty($conflicts)) {
-        // Construimos un mensaje entendible
         $names = [];
         foreach ($conflicts as $c) {
             $names[] = $c['first_name'] . ' ' . $c['last_name'] . ' (torneo: ' . $c['tournament_name'] . ')';

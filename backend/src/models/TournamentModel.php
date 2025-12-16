@@ -51,7 +51,7 @@ function tournament_list_public(PDO $pdo, array $filters): array
         $params['sport'] = $filters['sport'];
     }
     if (!empty($filters['status'])) {
-        $where[] = "status = :status";
+        $where[] = "t.status = :status";
         $params['status'] = $filters['status'];
     }
     if (!empty($filters['from_date'])) {

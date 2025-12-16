@@ -1,5 +1,5 @@
-// File: src/pages/provider/ProviderTournamentCreatePage.jsx
-import { useState } from "react"
+// File: frontend/src/pages/provider/ProviderTournamentCreatePage.jsx
+import { useEffect, useMemo, useState } from "react"
 import { api } from "../../api/http"
 import { useNavigate } from "react-router-dom"
 
@@ -10,6 +10,9 @@ export default function ProviderTournamentCreatePage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
+  const [courts, setCourts] = useState([])
+  const [loadingCourts, setLoadingCourts] = useState(true)
+
   const [form, setForm] = useState({
     name: "",
     sport: "futbol",
@@ -19,6 +22,9 @@ export default function ProviderTournamentCreatePage() {
     venue_info: "",
     start_date: "",
     end_date: "",
+    start_time: "",
+    end_time: "",
+    court_id: "",
     max_teams: "",
     min_players_per_team: "",
     max_players_per_team: "",
@@ -29,6 +35,36 @@ export default function ProviderTournamentCreatePage() {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
+  useEffect(() => {
+    const loadCourts = async () => {
+      setLoadingCourts(true)
+      setError(null)
+      try {
+        const res = await api.get("court_list_by_provider")
+        setCourts(res.courts || [])
+      } catch (err) {
+        setError(err.message || "Error al cargar canchas")
+      } finally {
+        setLoadingCourts(false)
+      }
+    }
+    loadCourts()
+  }, [])
+
+  // Filtrar canchas por deporte elegido
+  const courtsForSport = useMemo(() => {
+    return (courts || []).filter((c) => c.sport === form.sport && c.status === "active")
+  }, [courts, form.sport])
+
+  // Si cambia sport y la cancha elegida ya no aplica, la limpiamos
+  useEffect(() => {
+    if (!form.court_id) return
+    const exists = courtsForSport.some((c) => String(c.id) === String(form.court_id))
+    if (!exists) {
+      setForm((prev) => ({ ...prev, court_id: "" }))
+    }
+  }, [form.court_id, courtsForSport])
+
   const submit = async (e) => {
     e.preventDefault()
     setError(null)
@@ -37,13 +73,28 @@ export default function ProviderTournamentCreatePage() {
       setError("La fecha de fin no puede ser menor a la de inicio.")
       return
     }
+    if (!form.start_time || !form.end_time) {
+      setError("Debés indicar hora de inicio y fin del torneo.")
+      return
+    }
+    if (form.end_time <= form.start_time) {
+      setError("La hora de fin debe ser mayor a la de inicio.")
+      return
+    }
+    if (!form.court_id) {
+      setError("Debés seleccionar una cancha.")
+      return
+    }
 
     try {
       setSaving(true)
-      await api.post("tournament_create_provider", form)
+      await api.post("tournament_create_provider", {
+        ...form,
+        court_id: Number(form.court_id),
+      })
       navigate("/provider/tournaments")
     } catch (err) {
-      setError(err.message)
+      setError(err.message || "No se pudo crear el torneo")
     } finally {
       setSaving(false)
     }
@@ -72,6 +123,32 @@ export default function ProviderTournamentCreatePage() {
           </div>
 
           <div className="field">
+            <label className="field-label">Cancha</label>
+            <select
+              className="field-select"
+              name="court_id"
+              value={form.court_id}
+              onChange={handle}
+              disabled={loadingCourts}
+              required
+            >
+              <option value="">
+                {loadingCourts ? "Cargando canchas..." : "Elegí una cancha"}
+              </option>
+              {courtsForSport.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.internal_location ? `(${c.internal_location})` : ""}
+                </option>
+              ))}
+            </select>
+            {!loadingCourts && courtsForSport.length === 0 ? (
+              <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                No tenés canchas activas para este deporte.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="field">
             <label className="field-label">Fecha inicio</label>
             <input
               type="date"
@@ -92,6 +169,30 @@ export default function ProviderTournamentCreatePage() {
               name="end_date"
               value={form.end_date}
               min={form.start_date || TODAY}
+              onChange={handle}
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label className="field-label">Hora inicio torneo</label>
+            <input
+              type="time"
+              className="field-input"
+              name="start_time"
+              value={form.start_time}
+              onChange={handle}
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label className="field-label">Hora fin torneo</label>
+            <input
+              type="time"
+              className="field-input"
+              name="end_time"
+              value={form.end_time}
               onChange={handle}
               required
             />
@@ -132,7 +233,7 @@ export default function ProviderTournamentCreatePage() {
             <textarea className="field-textarea" name="prizes" value={form.prizes} onChange={handle}></textarea>
           </div>
 
-          <button className="btn btn-primary" disabled={saving}>
+          <button className="btn btn-primary" disabled={saving || loadingCourts || courtsForSport.length === 0}>
             {saving ? "Guardando..." : "Crear torneo"}
           </button>
         </form>

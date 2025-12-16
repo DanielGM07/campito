@@ -1,6 +1,4 @@
 -- File: database/schema.sql
--- :contentReference[oaicite:0]{index=0}
--- :contentReference[oaicite:1]{index=1}
 
 -- Crear base de datos
 CREATE DATABASE IF NOT EXISTS campito_db
@@ -200,19 +198,20 @@ CREATE TABLE IF NOT EXISTS tournament_registrations (
         ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
--- Partidos de torneo (opcional, para estadísticas y fixtures)
+-- Partidos de torneo / Bloques de ocupación (Opción A)
+-- CAMBIO: team_home_id y team_away_id ahora son NULLABLE para permitir “bloques”
 CREATE TABLE IF NOT EXISTS matches (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    tournament_id INT UNSIGNED NOT NULL,
-    court_id      INT UNSIGNED NULL,
-    team_home_id  INT UNSIGNED NOT NULL,
-    team_away_id  INT UNSIGNED NOT NULL,
-    match_datetime DATETIME NOT NULL,
-    home_score    INT NULL,
-    away_score    INT NULL,
-    status        ENUM('scheduled', 'in_progress', 'finished', 'cancelled') NOT NULL DEFAULT 'scheduled',
-    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    tournament_id   INT UNSIGNED NOT NULL,
+    court_id        INT UNSIGNED NULL,
+    team_home_id    INT UNSIGNED NULL,
+    team_away_id    INT UNSIGNED NULL,
+    match_datetime  DATETIME NOT NULL,
+    home_score      INT NULL,
+    away_score      INT NULL,
+    status          ENUM('scheduled', 'in_progress', 'finished', 'cancelled') NOT NULL DEFAULT 'scheduled',
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_matches_tournament
         FOREIGN KEY (tournament_id) REFERENCES tournaments(id)
         ON DELETE CASCADE
@@ -223,11 +222,11 @@ CREATE TABLE IF NOT EXISTS matches (
         ON UPDATE CASCADE,
     CONSTRAINT fk_matches_home_team
         FOREIGN KEY (team_home_id) REFERENCES teams(id)
-        ON DELETE CASCADE
+        ON DELETE SET NULL
         ON UPDATE CASCADE,
     CONSTRAINT fk_matches_away_team
         FOREIGN KEY (team_away_id) REFERENCES teams(id)
-        ON DELETE CASCADE
+        ON DELETE SET NULL
         ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
