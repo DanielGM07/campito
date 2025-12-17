@@ -70,7 +70,7 @@ function reservation_conflicts_with_tournament(PDO $pdo, int $courtId, string $d
               AND DATE(m.match_datetime) = :reserved_date
               AND t.status IN ('scheduled','registration_open','in_progress')
               AND NOT (
-                    DATE_ADD(m.match_datetime, INTERVAL 90 MINUTE) <= :start_time_dt
+                    DATE_ADD(m.match_datetime, INTERVAL 60 MINUTE) <= :start_time_dt
                     OR m.match_datetime >= :end_time_dt
               )";
 
@@ -88,6 +88,7 @@ function reservation_conflicts_with_tournament(PDO $pdo, int $courtId, string $d
 
     return $row && (int)$row['cnt'] > 0;
 }
+
 
 function reservation_create(PDO $pdo, array $data): int
 {

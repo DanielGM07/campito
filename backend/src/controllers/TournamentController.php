@@ -9,6 +9,13 @@ require_once __DIR__ . '/../models/TeamModel.php';
 require_once __DIR__ . '/../models/TournamentModel.php';
 require_once __DIR__ . '/../models/TournamentRegistrationModel.php';
 
+require_once __DIR__ . '/../helpers/time.php';
+require_once __DIR__ . '/../models/CourtTimeSlotModel.php';
+
+require_once __DIR__ . '/../helpers/court_schedule.php';
+require_once __DIR__ . '/../helpers/reservation_conflicts.php';
+
+
 function tournament_list_public_controller(PDO $pdo): void
 {
     $filters = [
@@ -242,17 +249,25 @@ function tournament_create_provider_controller(PDO $pdo): void
         }
     }
 
-    // Validaciones básicas de fechas/horas
+    // fechas
     if ($input['end_date'] < $input['start_date']) {
         json_response(['error' => 'La fecha fin no puede ser menor a la fecha inicio'], 400);
     }
-    if ($input['end_time'] <= $input['start_time']) {
+
+    // normalizar horas (en punto, permitir 24:00 en fin)
+    $startTime = normalize_hour_time((string)$input['start_time']);
+    $endTime   = normalize_end_time_allow_24((string)$input['end_time']);
+
+    $sHour = hour_time_to_int($startTime);
+    $eHour = hour_time_to_int($endTime);
+
+    if ($eHour <= $sHour) {
         json_response(['error' => 'La hora fin debe ser mayor que la hora inicio'], 400);
     }
 
     $courtId = (int)$input['court_id'];
 
-    // Verificar que la cancha pertenezca al proveedor y esté activa
+    // Verificar cancha del proveedor + activa
     $stmtCourt = $pdo->prepare("
         SELECT c.*
         FROM courts c
@@ -266,19 +281,80 @@ function tournament_create_provider_controller(PDO $pdo): void
         'provider_id' => (int)$provider['id'],
     ]);
     $court = $stmtCourt->fetch(PDO::FETCH_ASSOC);
+
     if (!$court) {
         json_response(['error' => 'Cancha inválida o no pertenece a tu sede'], 400);
     }
 
-    // (opcional pero recomendado) Deporte debe coincidir con la cancha
+    // deporte debe coincidir
     if (($court['sport'] ?? null) !== $input['sport']) {
         json_response(['error' => 'El deporte del torneo debe coincidir con el deporte de la cancha'], 400);
+    }
+
+    $tz = new DateTimeZone("America/Argentina/Buenos_Aires");
+    $d1 = new DateTime($input['start_date'], $tz);
+    $d2 = new DateTime($input['end_date'], $tz);
+
+    // VALIDACIÓN: torneo dentro de horarios de la cancha + sin reservas
+    $d = clone $d1;
+    while ($d <= $d2) {
+        $weekday = (int)$d->format('w'); // 0..6
+
+        // slots base para ese weekday
+        $slots = court_timeslots_list_for_court_weekday($pdo, $courtId, $weekday);
+
+        $availableStartHours = [];
+        foreach ($slots as $s) {
+            $availableStartHours[hour_time_to_int((string)$s['start_time'])] = true;
+        }
+
+        // cada hora del torneo debe existir como slot
+        for ($h = $sHour; $h < $eHour; $h++) {
+            if (empty($availableStartHours[$h])) {
+                $missing = sprintf('%02d:00', $h);
+                json_response([
+                    'error' => "El torneo se sale del horario disponible de la cancha. Falta el turno $missing para el día " . $d->format('Y-m-d')
+                ], 400);
+            }
+        }
+
+        // reservas existentes ese día
+        $stmtRes = $pdo->prepare("
+            SELECT start_time, end_time
+            FROM reservations
+            WHERE court_id = :court_id
+              AND reserved_date = :reserved_date
+              AND status IN ('pending','confirmed','in_progress','completed')
+        ");
+        $stmtRes->execute([
+            ':court_id' => $courtId,
+            ':reserved_date' => $d->format('Y-m-d'),
+        ]);
+        $reservations = $stmtRes->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        for ($h = $sHour; $h < $eHour; $h++) {
+            $blockStart = sprintf('%02d:00:00', $h);
+            $blockEnd   = ($h + 1 === 24) ? '24:00:00' : sprintf('%02d:00:00', $h + 1);
+
+            foreach ($reservations as $r) {
+                $rs = (string)$r['start_time'];
+                $re = (string)$r['end_time'];
+                if ($blockStart < $re && $blockEnd > $rs) {
+                    json_response([
+                        'error' => "No se puede crear el torneo: existe una reserva el " . $d->format('Y-m-d') .
+                                   " en el horario " . substr($blockStart,0,5) . " - " . substr($blockEnd,0,5)
+                    ], 400);
+                }
+            }
+        }
+
+        $d->modify('+1 day');
     }
 
     try {
         $pdo->beginTransaction();
 
-        // Crear torneo
+        // Crear torneo (mismo INSERT que tenías)
         $stmt = $pdo->prepare("
             INSERT INTO tournaments (
                 provider_id, name, sport, description, rules, prizes,
@@ -313,13 +389,7 @@ function tournament_create_provider_controller(PDO $pdo): void
 
         $tournamentId = (int)$pdo->lastInsertId();
 
-        // Generar bloques (matches) de 90 minutos entre start_time y end_time para cada día
-        $startDate = new DateTime($input['start_date']);
-        $endDate   = new DateTime($input['end_date']);
-        $startTime = $input['start_time']; // "HH:MM"
-        $endTime   = $input['end_time'];   // "HH:MM"
-        $interval  = new DateInterval('PT90M');
-
+        // Generar matches/bloques de 1 hora
         $insertMatch = $pdo->prepare("
             INSERT INTO matches (
                 tournament_id,
@@ -338,25 +408,26 @@ function tournament_create_provider_controller(PDO $pdo): void
             )
         ");
 
-        for ($date = clone $startDate; $date <= $endDate; $date->modify('+1 day')) {
-            $current = new DateTime($date->format('Y-m-d') . ' ' . $startTime);
-            $limit   = new DateTime($date->format('Y-m-d') . ' ' . $endTime);
+        $d = new DateTime($input['start_date'], $tz);
+        $end = new DateTime($input['end_date'], $tz);
 
-            while ($current < $limit) {
+        while ($d <= $end) {
+            for ($h = $sHour; $h < $eHour; $h++) {
+                $dt = $d->format('Y-m-d') . ' ' . sprintf('%02d:00:00', $h);
                 $insertMatch->execute([
                     'tournament_id'  => $tournamentId,
                     'court_id'       => $courtId,
-                    'match_datetime' => $current->format('Y-m-d H:i:s'),
+                    'match_datetime' => $dt,
                 ]);
-                $current->add($interval);
             }
+            $d->modify('+1 day');
         }
 
         $pdo->commit();
 
         json_response([
-            'message'      => 'Torneo creado y horarios bloqueados correctamente',
-            'tournament_id'=> $tournamentId,
+            'message'       => 'Torneo creado y horarios bloqueados correctamente',
+            'tournament_id' => $tournamentId,
         ], 201);
 
     } catch (Throwable $e) {
@@ -365,6 +436,7 @@ function tournament_create_provider_controller(PDO $pdo): void
         json_response(['error' => 'Error al crear torneo'], 500);
     }
 }
+
 
 // ======================================================
 // INSCRIPCIÓN DE EQUIPO EN TORNEO (Jugador - solo capitán)
